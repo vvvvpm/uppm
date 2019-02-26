@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.168
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "uppm", "uppm\uppm.csproj", "{93ECFEF7-DDF8-4C27-84F0-0EE6EE5F3A5A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "uppm.Core", "uppm.Core\uppm.Core.csproj", "{6A70145A-F4B9-4EC0-B7E1-A3D8D74E90CF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{93ECFEF7-DDF8-4C27-84F0-0EE6EE5F3A5A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{93ECFEF7-DDF8-4C27-84F0-0EE6EE5F3A5A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{93ECFEF7-DDF8-4C27-84F0-0EE6EE5F3A5A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{93ECFEF7-DDF8-4C27-84F0-0EE6EE5F3A5A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6A70145A-F4B9-4EC0-B7E1-A3D8D74E90CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6A70145A-F4B9-4EC0-B7E1-A3D8D74E90CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6A70145A-F4B9-4EC0-B7E1-A3D8D74E90CF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6A70145A-F4B9-4EC0-B7E1-A3D8D74E90CF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5072BDF2-0352-4832-BE37-AC29C4A22548}
+	EndGlobalSection
+EndGlobal
