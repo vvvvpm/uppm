@@ -2,8 +2,8 @@
 using System.IO;
 using System.Linq;
 using System.Management.Automation;
-using log4net;
 using md.stdl.Windows;
+using Serilog;
 
 namespace uppm.Core.Scripting
 {
@@ -88,15 +88,20 @@ namespace uppm.Core.Scripting
         public Package Pack { get; }
         
         /// <inheritdoc />
-        public ILog Log { get; internal set; }
+        public ILogger Log { get; }
 
         /// <summary></summary>
         /// <param name="pack">The associated package</param>
         /// <param name="uppm">The executing package manager</param>
-        public ScriptHost(Package pack, IUppmImplementation uppm)
+        public ScriptHost(Package pack, IUppmImplementation uppm) : this()
         {
             Uppm = uppm;
             Pack = pack;
+        }
+
+        internal ScriptHost()
+        {
+            Log = this.GetContext();
         }
 
         /// <summary>
@@ -112,7 +117,7 @@ namespace uppm.Core.Scripting
         /// <param name="e"></param>
         public void ThrowException(Exception e)
         {
-            Log.UError("Script threw an exception: " + e.Message, this, e);
+            Log.Error(e, "Script of {$PackRef} threw an exception", Pack.Meta.Self);
         }
 
         /// <summary>

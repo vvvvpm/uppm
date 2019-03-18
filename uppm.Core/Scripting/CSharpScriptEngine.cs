@@ -9,11 +9,11 @@ using Dotnet.Script.DependencyModel.Environment;
 using Dotnet.Script.DependencyModel.Logging;
 using Dotnet.Script.DependencyModel.Runtime;
 using Hjson;
-using log4net;
 using md.stdl.Coding;
 using md.stdl.String;
 using Microsoft.CodeAnalysis.Text;
 using Newtonsoft.Json.Linq;
+using Serilog;
 using uppm.Core.Utils;
 
 namespace uppm.Core.Scripting
@@ -50,21 +50,22 @@ namespace uppm.Core.Scripting
             switch (level)
             {
                 case LogLevel.Trace:
+                    source.Log.Verbose(exception, message);
                     break;
                 case LogLevel.Debug:
-                    source.Log.UDebug(message, source);
+                    source.Log.Debug(exception, message);
                     break;
                 case LogLevel.Info:
-                    source.Log.UInfo(message, source);
+                    source.Log.Information(exception, message);
                     break;
                 case LogLevel.Warning:
-                    source.Log.UWarn(message, source, exception);
+                    source.Log.Warning(exception, message);
                     break;
                 case LogLevel.Error:
-                    source.Log.UError(message, source, exception);
+                    source.Log.Error(exception, message);
                     break;
                 case LogLevel.Critical:
-                    source.Log.UFatal(message, source, exception);
+                    source.Log.Fatal(exception, message);
                     break;
             }
         };
@@ -79,28 +80,35 @@ namespace uppm.Core.Scripting
         public bool AllowSystemAssociation => true;
 
         /// <inheritdoc />
-        public bool TryGetMeta(string text, ref PackageMeta packmeta, out VersionRequirement requiredVersion)
+        public bool TryGetMeta(string text, ref PackageMeta packmeta, out VersionRequirement requiredVersion, CompletePackageReference packref = null)
         {
             var matches = text.MatchGroup(
-                @"\A\/\*\s+uppm\s+(?<pmversion>[\d\.]+)\s+(?<packmeta>\{.*\})\s+\*\/",
+                @"\A\/\*\s+uppm\s+(?<uppmversion>[\d\.]+)\s+(?<packmeta>\{.*\})\s+\*\/",
                 RegexOptions.CultureInvariant |
                 RegexOptions.IgnoreCase |
                 RegexOptions.Singleline);
 
             packmeta = packmeta ?? new PackageMeta();
+            if (packref != null) packmeta.Self = packref;
+            packmeta.Text = text;
+
             requiredVersion = new VersionRequirement();
 
             if (matches == null ||
                 matches.Count == 0 ||
-                matches["pmversion"]?.Length <= 0 ||
+                matches["uppmversion"]?.Length <= 0 ||
                 matches["packmeta"]?.Length <= 0
             )
+            {
+                Log.Error("{PackRef} doesn't contain valid metadata.", packref?.ToString() ?? "Script");
                 return false;
+            }
 
-            if (UppmVersion.TryParse(matches["pmversion"].Value, out var minuppmversion, UppmVersion.Inference.Zero))
+            if (UppmVersion.TryParse(matches["uppmversion"].Value, out var minuppmversion, UppmVersion.Inference.Zero))
             {
                 requiredVersion.MinimalVersion = minuppmversion;
                 requiredVersion.Valid = minuppmversion <= UppmVersion.CoreVersion;
+                packmeta.RequiredUppmVersion = requiredVersion;
                 var metatext = matches["packmeta"].Value;
                 try
                 {
@@ -108,24 +116,56 @@ namespace uppm.Core.Scripting
                 }
                 catch (Exception e)
                 {
+                    Log.Error(e, "Parsing metadata of {PackRef} threw an exception.", packref?.ToString() ?? "script");
                     requiredVersion.Valid = false;
+                    return false;
                 }
-                return requiredVersion.Valid;
+
+                if (requiredVersion.Valid)
+                {
+                    if (TryGetScriptText(text, out var scripttext, packmeta.Imports))
+                    {
+                        packmeta.ScriptText = scripttext;
+                        return true;
+                    }
+                    else
+                    {
+                        Log.Error("Couldn't get the script text of {PackRef}.", packref?.ToString() ?? packmeta.Name);
+                        return false;
+                    }
+                }
+                else
+                {
+                    Log.Error(
+                        "{PackRef} requires at least uppm {$RequiredMinVersion}. " +
+                        "It's incompatible with Current version of uppm ({$UppmVersion})",
+                        packref?.ToString() ?? packmeta.Name,
+                        requiredVersion.MinimalVersion,
+                        UppmVersion.CoreVersion);
+                    return false;
+                }
             }
-            else return false;
+            {
+                Log.Error("{PackRef} doesn't contain valid metadata.", packref?.ToString() ?? "Script");
+                return false;
+            }
         }
 
         /// <inheritdoc />
-        public string GetScriptText(string text)
+        public bool TryGetScriptText(string text, out string scripttext, HashSet<PartialPackageReference> imports = null)
         {
-            throw new NotImplementedException();
+            //TODO: process and transform uppm-ref #loads
+            // to do that create a temporary file for referenced packages
+            // and inject those files into uppm-ref #loads
+            scripttext = text;
+            return true;
         }
 
         /// <inheritdoc />
         public async void RunAction(Package pack, string action)
         {
             var logger = CreateScriptLogger(this);
-            var src = SourceText.From(pack.Meta.Text);
+            var src = SourceText.From(pack.Meta.ScriptText);
             var ctx = new ScriptContext(src, Environment.CurrentDirectory, Enumerable.Empty<string>());
             var rtdepresolver = new RuntimeDependencyResolver(logger, true);
             var compiler = new ScriptCompiler(logger, rtdepresolver);
@@ -140,7 +180,7 @@ namespace uppm.Core.Scripting
 
             var scriptResult = await compctx.Script.RunAsync(host, exception =>
             {
-                Log.UError(exception.Message, host, exception);
+                Log.Error(exception, "Script of {$PackRef} threw an exception:", pack.Meta.Self);
                 return true;
             }).ConfigureAwait(false);
             
@@ -150,7 +190,7 @@ namespace uppm.Core.Scripting
             {
                 if (!(result.Get(action) is Action commandDelegate))
                 {
-                    Log.UError("Package doesn't contain specified action", this);
+                    Log.Error("Script of {$PackRef} doesn't contain action {ScriptAction}", pack.Meta.Self, action);
                 }
                 else
                 {
@@ -160,11 +200,16 @@ namespace uppm.Core.Scripting
             }
             else
             {
-                
+                Log.Error("Script of {$PackRef} didn't return an object", pack.Meta.Self);
             }
         }
 
         /// <inheritdoc />
-        public ILog Log { get; set; }
+        public ILogger Log { get; }
+
+        public CSharpScriptEngine()
+        {
+            Log = this.GetContext();
+        }
     }
 }

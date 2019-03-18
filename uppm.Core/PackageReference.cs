@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using md.stdl.String;
+using uppm.Core.Repositories;
 using uppm.Core.Utils;
 
 namespace uppm.Core
@@ -12,6 +13,11 @@ namespace uppm.Core
     /// Parsed representation of an uppm package reference.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Note for safety there are separate types for user input references which might be incomplete
+    /// <see cref="PartialPackageReference"/> and complete references <see cref="CompletePackageReference"/>
+    /// where which it can be safely assumed that no further data needs to be infered.
+    /// </para>
     /// <para>Uppm has its own package reference format used for dependencies and meta or script imports:</para>
     /// <code>
     /// &lt;name&gt;:&lt;version&gt; @ &lt;repository&gt;
@@ -25,7 +31,7 @@ namespace uppm.Core
     /// </para>
     /// <para>Read more in README.md</para>
     /// </remarks>
-    public class PackageReference
+    public abstract class PackageReference : Versionable
     {
         /// <summary>
         /// URI scheme to be used for uppm references sent from external sources
@@ -37,7 +43,7 @@ namespace uppm.Core
         /// </summary>
         /// <param name="refstring"></param>
         /// <returns></returns>
-        public static PackageReference Parse(string refstring)
+        public static PartialPackageReference Parse(string refstring)
         {
             var crefstring = refstring;
             if (refstring.StartsWithCaseless(UppmUriScheme))
@@ -54,16 +60,14 @@ namespace uppm.Core
                 var name = regexmatches["name"]?.Value;
                 if (name != null)
                 {
-                    var res = new PackageReference
+                    return new PartialPackageReference
                     {
                         Name = name,
                         RepositoryUrl = regexmatches["repo"]?.Value,
-                        PackVersion = regexmatches["version"]?.Value
+                        Version = regexmatches["version"]?.Value
                     };
                 }
                 else return null;
-
-                // TODO modularly and nicely decide repo type
             }
             else return null;
         }
@@ -73,42 +77,10 @@ namespace uppm.Core
         /// </summary>
         public string Name { get; set; }
 
-
         /// <summary>
         /// Repository URL of the referred package
         /// </summary>
         public string RepositoryUrl { get; set; }
-        
-        /// <summary>
-        /// Version of the referred package
-        /// </summary>
-        public string PackVersion { get; set; }
-
-        /// <summary>
-        /// Is the versioning of referred pack semantical?
-        /// </summary>
-        /// <param name="semversion">Parsed version</param>
-        /// <returns>True if semantical</returns>
-        public bool IsSemanticalVersion(out UppmVersion semversion)
-        {
-            var res = UppmVersion.TryParse(PackVersion, out semversion);
-            if (!res && IsLatest)
-            {
-                semversion = new UppmVersion(int.MaxValue);
-                res = true;
-            }
-            return res;
-        }
-
-        /// <summary>
-        /// Is the versioning of referred pack is not semantical?
-        /// </summary>
-        public bool IsSpecialVersion => PackVersion != null && !IsSemanticalVersion(out _) && !IsLatest;
-
-        /// <summary>
-        /// Is the reference points to the latest version of the referred pack?
-        /// </summary>
-        public bool IsLatest => PackVersion != null && PackVersion.EqualsCaseless("latest");
 
         /// <summary>
         /// Is this reference matches another one.
@@ -123,7 +95,7 @@ namespace uppm.Core
             versionCompare = versionCompare ?? UppmVersion.Comparison.Same;
 
             var versionmatches = false;
-            if (!string.IsNullOrWhiteSpace(PackVersion) && !string.IsNullOrWhiteSpace(other.PackVersion))
+            if (!string.IsNullOrWhiteSpace(Version) && !string.IsNullOrWhiteSpace(other.Version))
             {
                 var iscurrsemver = IsSemanticalVersion(out var currsemversion);
                 var isothersemversion = other.IsSemanticalVersion(out var othersemversion);
@@ -134,10 +106,10 @@ namespace uppm.Core
                 }
                 else if (iscurrsemver == isothersemversion) // so both are false
                 {
-                    versionmatches = PackVersion.EqualsCaseless(other.PackVersion);
+                    versionmatches = Version.EqualsCaseless(other.Version);
                 }
             }
-            else versionmatches = string.IsNullOrWhiteSpace(PackVersion) == string.IsNullOrWhiteSpace(other.PackVersion);
+            else versionmatches = string.IsNullOrWhiteSpace(Version) == string.IsNullOrWhiteSpace(other.Version);
 
             var repositorymatches = false;
             if (RepositoryUrl != null && other.RepositoryUrl != null)
@@ -155,7 +127,7 @@ namespace uppm.Core
             if (obj is PackageReference other)
             {
                 return (Name?.EqualsCaseless(other.Name) ?? false) &&
-                       PackVersion.EqualsCaseless(other.PackVersion) &&
+                       Version.EqualsCaseless(other.Version) &&
                        (RepositoryUrl?.EqualsCaseless(other.RepositoryUrl) ?? false);
             }
             return false;
@@ -168,12 +140,22 @@ namespace uppm.Core
             {
                 var hashCode = (Name != null ? Name.GetHashCode() : 0);
                 hashCode = (hashCode * 397) ^ (RepositoryUrl != null ? RepositoryUrl.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ (PackVersion != null ? PackVersion.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (Version != null ? Version.GetHashCode() : 0);
                 return hashCode;
             }
         }
 
         /// <inheritdoc />
-        public override string ToString() => $"{Name}:{PackVersion}@{RepositoryUrl}";
+        public override string ToString() => $"{Name}:{Version}@{RepositoryUrl}";
     }
+
+    /// <inheritdoc />
+    public class PartialPackageReference : PackageReference { }
+
+    /// <inheritdoc />
+    /// <summary>
+    /// A complete reference to a package, meaning both version and repository
+    /// is precisely specified and nothing has to be further infered
+    /// </summary>
+    public class CompletePackageReference : PartialPackageReference { }
 }

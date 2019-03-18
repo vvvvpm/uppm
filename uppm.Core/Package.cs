@@ -7,164 +7,273 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Hjson;
+using md.stdl.Coding;
 using md.stdl.String;
 using Newtonsoft.Json.Linq;
-using uppm.Core.Utils;
+using Serilog;
+using uppm.Core.Repositories;
+using uppm.Core.Scripting;
 
 namespace uppm.Core
 {
     /// <summary>
-    /// Immutable metadata for an opened package
+    /// Actual package containing side effects and practical utilities
     /// </summary>
-    public class PackageMeta
+    /// <remarks>
+    /// When <see cref="ConstructDependencyTree()"/> is called
+    /// dependencies are flattened to the initial dependency referenced
+    /// by user input or other manual means. This avoids duplicates,
+    /// circular dependencies and version conflicts but sacrifices
+    /// nice graph-visualizations (so far ;) )
+    /// </remarks>
+    public class Package : ILogSource
     {
-        public static void ParseFromHjson(string hjson, ref PackageMeta packmeta)
+        private Package _root;
+
+        /// <summary>
+        /// Metadata of the package
+        /// </summary>
+        public PackageMeta Meta { get; }
+
+        /// <summary>
+        /// Associated script engine with the package in runtime
+        /// </summary>
+        public IScriptEngine Engine { get; }
+
+        /// <summary>
+        /// Branch depth in the dependency tree counted from root == 0
+        /// </summary>
+        public int DependencyTreeDepth { get; set; }
+
+        /// <summary>
+        /// The package at the root of the dependency tree.
+        /// </summary>
+        public Package Root
         {
-            packmeta = packmeta ?? new PackageMeta();
-            var json = HjsonValue.Parse(hjson).ToString();
-            var jobj = packmeta.MetaData = JObject.Parse(json);
+            get => _root ?? this;
+            set => _root = value;
+        }
 
-            packmeta.Name = jobj["name"].ToString();
-            packmeta.Version = jobj["version"].ToString();
+        /// <summary>
+        /// If this package is root all recursive dependencies can be
+        /// collected into this dictionary.
+        /// </summary>
+        public Dictionary<string, Package> FlatDependencies { get; } = new Dictionary<string, Package>();
 
-            packmeta.Author = jobj["author"]?.ToString();
-            packmeta.License = jobj["license"]?.ToString();
-            packmeta.ProjectUrl = jobj["projectUrl"]?.ToString();
-            packmeta.Repository = jobj["repository"]?.ToString();
-            packmeta.InferSelf();
-            packmeta.Dependencies.Clear();
+        /// <summary></summary>
+        /// <param name="meta">Package metadata associated</param>
+        /// <param name="engine">The script engine associated</param>
+        public Package(PackageMeta meta, IScriptEngine engine)
+        {
+            Meta = meta;
+            Engine = engine;
+            Log = this.GetContext();
+        }
 
-            if (jobj.TryGetValue("dependencies", out var jdeps))
+        /// <summary>
+        /// Runs specified action of this package
+        /// </summary>
+        /// <param name="action"></param>
+        /// <param name="recursive"></param>
+        public void RunAction(string action, bool recursive = true)
+        {
+            if (DependencyTreeDepth == 0 && recursive)
             {
-                foreach (var jdep in jdeps)
+                foreach (var dependency in FlatDependencies.Values)
                 {
-                    packmeta.Dependencies.Add(PackageReference.Parse(jdep.ToString()));
+                    dependency.RunAction(action);
+                }
+            }
+            Engine.RunAction(this, action);
+        }
+
+        /// <summary>
+        /// Instantiate the dependencies of this pack. Call this after
+        /// successfully retrieved the initial pack.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Uppm doesn't support different versions of the same pack in
+        /// the same dependency tree. There are couple of preferences when
+        /// it comes to conflicting versions of the same pack which multiple
+        /// other packages are depending on.
+        /// <list type="bullet">
+        /// <item><description>Only one dependency kept when both conflicting packs have different special versions</description></item>
+        /// <item><description>Non-special version (`latest` or semantical) is preferred over special version</description></item>
+        /// <item><description>More specific semantical version is preferred over `latest`</description></item>
+        /// <item><description>The highest semantically versioned dependency is kept from conflicting ones</description></item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        public void ConstructDependencyTree()
+        {
+            Root.FlatDependencies.Clear();
+
+            foreach (var depref in Meta.Dependencies)
+            {
+                if (!depref.TryGetPackage(out var dependency))
+                {
+                    Log.Warning(
+                        "Couldn't get dependency {$DepPackRef} of {PackName}.\nSkipping dependency. Probably the package will have issues.",
+                        depref, Meta.Name
+                    );
+                    continue;
+                }
+                if (Root.FlatDependencies.TryGetValue(depref.Name, out var rootdep))
+                {
+                    if (HandleConflictingSpecialVersions(dependency, rootdep)) continue;
+                    if (HandleSpecialNonSpecialVersionConflict(dependency, rootdep)) continue;
+                    if (HandleIsLatestMoreSpecific(dependency, rootdep)) continue;
+
+                    // in case both are the latest prefer already existing
+                    if (rootdep.Meta.IsLatest && dependency.Meta.IsLatest) continue;
+
+                    HandleSemanticalVersionConflict(dependency, rootdep);
+                }
+                else
+                {
+                    Root.FlatDependencies.UpdateGeneric(dependency.Meta.Name, dependency);
+                    ConstructDependencyTree(dependency);
                 }
             }
         }
 
-        /// <summary>
-        /// The <see cref="JObject"/> representing the package descriptor comment in the package file
-        /// </summary>
-        public JObject MetaData { get; set; }
-
-        /// <summary>
-        /// Reference to self
-        /// </summary>
-        public PackageReference Self { get; set; }
-
-        /// <summary>
-        /// Required uppm version for this pack
-        /// </summary>
-        public VersionRequirement RequiredUppmVersion { get; set; }
-
-        /// <summary>
-        /// Friendly name of this package
-        /// </summary>
-        public string Name { get; set; }
-
-        /// <summary>
-        /// Optional author of this package
-        /// </summary>
-        public string Author { get; set; }
-
-        /// <summary>
-        /// Optional url to the package's project website
-        /// </summary>
-        public string ProjectUrl { get; set; }
-
-        /// <summary>
-        /// Optional license text
-        /// </summary>
-        public string License { get; set; }
-
-        /// <summary>
-        /// Arbitrary version text
-        /// </summary>
-        public string Version { get; set; }
-
-        /// <summary>
-        /// A package can optionally specify a repository explicitly,
-        /// however this is only taken into account when a package is processed out of context.
-        /// </summary>
-        public string Repository { get; set; }
-
-        /// <summary>
-        /// Semantical version in case it's a valid one, otherwise null
-        /// </summary>
-        public UppmVersion? SemanticVersion { get; set; }
-
-        /// <summary>
-        /// The entire text of the package file
-        /// </summary>
-        public string Text { get; set; }
-
-        /// <summary>
-        /// References for packages this one is depending on
-        /// </summary>
-        public List<PackageReference> Dependencies { get; } = new List<PackageReference>();
-
-        /// <summary>
-        /// References for packages which scripts should be imported into the current script.
-        /// </summary>
-        public List<PackageReference> Imports { get; } = new List<PackageReference>();
-
-        public void InferSelf()
+        private void ConstructDependencyTree(Package dependency)
         {
-            if (Self == null)
+            dependency.Root = Root;
+            dependency.DependencyTreeDepth = DependencyTreeDepth + 1;
+            dependency.ConstructDependencyTree();
+        }
+
+        /// <summary>
+        /// in case conflicting special versions prefer already existing
+        /// </summary>
+        /// <param name="current"></param>
+        /// <param name="existing"></param>
+        /// <returns></returns>
+        private bool HandleConflictingSpecialVersions(Package current, Package existing)
+        {
+            if (current.Meta.IsSpecialVersion && existing.Meta.IsSpecialVersion)
             {
-                Self = new PackageReference
+                if (!existing.Meta.Version.EqualsCaseless(current.Meta.Version))
+                    LogDependencyVersionConflict(existing, current);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// in case conflicting special vs non-special version prefer non-special
+        /// </summary>
+        /// <param name="current"></param>
+        /// <param name="existing"></param>
+        /// <returns></returns>
+        private bool HandleSpecialNonSpecialVersionConflict(Package current, Package existing)
+        {
+            if (existing.Meta.IsSpecialVersion != current.Meta.IsSpecialVersion)
+            {
+                var kept = existing.Meta.IsSpecialVersion ? current : existing;
+                var skipped = existing.Meta.IsSpecialVersion ? existing : current;
+                LogDependencyVersionConflict(kept, skipped);
+                
+                Root.FlatDependencies.UpdateGeneric(kept.Meta.Name, kept);
+
+                if (existing.Meta.IsSpecialVersion) ConstructDependencyTree(current);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// In case conflicting `latest` prefer specific version
+        /// </summary>
+        /// <param name="current"></param>
+        /// <param name="existing"></param>
+        /// <returns></returns>
+        private bool HandleIsLatestMoreSpecific(Package current, Package existing)
+        {
+            if (existing.Meta.IsLatest != current.Meta.IsLatest)
+            {
+                var kept = existing.Meta.IsLatest ? current : existing;
+                LogDependencyLatestConflict(kept);
+                
+                Root.FlatDependencies.UpdateGeneric(kept.Meta.Name, kept);
+
+                if(existing.Meta.IsLatest) ConstructDependencyTree(current);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// In case they are both semantical versions prefer higher
+        /// </summary>
+        /// <param name="current"></param>
+        /// <param name="existing"></param>
+        /// <returns></returns>
+        private bool HandleSemanticalVersionConflict(Package current, Package existing)
+        {
+            if (existing.Meta.IsSemanticalVersion(out var rootver) &&
+                current.Meta.IsSemanticalVersion(out var currver))
+            {
+                rootver.MissingInference = currver.MissingInference = UppmVersion.Inference.Newest;
+                var kept = currver > rootver ? current : existing;
+                var skipped = currver > rootver ? existing : current;
+                if (currver.Major != rootver.Major || currver.Minor != rootver.Minor)
                 {
-                    Name = Name,
-                    PackVersion = Version,
-                    RepositoryUrl = Repository
-                };
+                    LogDependencyMajorMinorConflict(kept, skipped);
+                }
+                Root.FlatDependencies.UpdateGeneric(kept.Meta.Name, kept);
+
+                if(currver > rootver) ConstructDependencyTree(current);
+                return true;
             }
+            return false;
         }
-    }
 
-    /// <summary>
-    /// Actual package containing side effects and practical utilities
-    /// </summary>
-    public class Package
-    {
-        public struct GetMetaCommentResult
+        private void LogDependencyVersionConflict(Package kept, Package skipped)
         {
-            public bool Valid;
-            public UppmVersion MinimalVersion;
+            Log.Warning(
+@"Conflicting versions are referenced of the same package as dependencies by other packages: {KeptName}
+kept version    `{$KeptVersion}`
+skipped version `{$SkippedVersion}`
 
-            public bool VersionValid => MinimalVersion <= UppmVersion.CoreVersion;
+Multiple package versions are not supported in uppm by design. Only one of them will be installed.
+This might be OK and best case scenario nothing will break.",
+                kept.Meta.Name,
+                kept.Meta.Version,
+                skipped.Meta.Version
+            );
         }
 
-        public static bool TryGetUppmMetaComment(string packtext, out string metatext, out GetMetaCommentResult result)
+        private void LogDependencyLatestConflict(Package kept)
         {
-            var matches = packtext.MatchGroup(
-                @"\A\/\*\s+uppm\s+(?<pmversion>[\d\.]+)\s+(?<packmeta>\{.*\})\s+\*\/",
-                RegexOptions.CultureInvariant |
-                RegexOptions.IgnoreCase |
-                RegexOptions.Singleline);
-            metatext = "";
-            result = new GetMetaCommentResult();
-            if (matches == null ||
-                matches.Count == 0 ||
-                matches["pmversion"]?.Length <= 0 ||
-                matches["packmeta"]?.Length <= 0
-                )
-                return false;
+            Log.Warning(
+@"More specific version is referenced of the same package as dependencies by other packages: {KeptName}
+kept version `{$KeptVersion}`
 
-            if (UppmVersion.TryParse(matches["pmversion"].Value, out var minuppmversion, UppmVersion.Inference.Zero))
-            {
-                result.MinimalVersion = minuppmversion;
-                result.Valid = minuppmversion <= UppmVersion.CoreVersion;
-                metatext = matches["packmeta"].Value;
-                return result.Valid;
-            }
-            else return false;
+Multiple package versions are not supported in uppm by design. Only one of them will be installed.
+This might be OK and best case scenario nothing will break.",
+                kept.Meta.Name,
+                kept.Meta.Version
+            );
         }
 
-        public PackageMeta Meta { get; set; }
+        private void LogDependencyMajorMinorConflict(Package kept, Package skipped)
+        {
+            Log.Warning(
+@"Potentially incompatible versions are referenced of the same package as dependencies by other packages: {KeptName}
+kept higher version   `{$KeptVersion}`
+skipped lower version `{$SkippedVersion}`
 
-        public ConcurrentDictionary<string, Package> Dependencies { get; } = new ConcurrentDictionary<string, Package>();
+Multiple package versions are not supported in uppm by design. Only one of them will be installed.
+This might be OK and best case scenario nothing will break.",
+                kept.Meta.Name,
+                kept.Meta.Version,
+                skipped.Meta.Version
+            );
+        }
+
+        public ILogger Log { get; set; }
     }
 }
-

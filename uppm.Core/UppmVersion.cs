@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace uppm.Core.Utils
+namespace uppm.Core
 {
     /// <summary>
     /// Used for determining minimum version of uppm given entity is compatible with
@@ -41,7 +41,7 @@ namespace uppm.Core.Utils
     /// Example: By default, any version Major.Minor.Build.Rev will be smaller than Major.Minor.Build
     /// which all will be smaller than Major.Minor and the single Major number will be larger than all
     /// of those. Possibly missing and therefore infered semantical components are represented as
-    /// nullable integers.
+    /// nullable integers. Missing semantic component inference can be changed (<see cref="Inference"/>)
     /// </para>
     /// </remarks>
     public struct UppmVersion
@@ -128,6 +128,18 @@ namespace uppm.Core.Utils
             /// A is equals or newer than B
             /// </summary>
             public static readonly VersionCompare SameOrNewer = (a, b) => a >= b;
+
+            /// <summary>
+            /// Comparison operations for version criteria syntax
+            /// </summary>
+            public static readonly Dictionary<string, VersionCompare> Shortcuts = new Dictionary<string, VersionCompare>
+            {
+                {"=", Same },
+                {"<", Older },
+                {">", Newer },
+                {"<=", SameOrOlder },
+                {">=", SameOrNewer }
+            };
         }
 
         /// <summary>
@@ -147,10 +159,10 @@ namespace uppm.Core.Utils
             version = new UppmVersion(0, inference: inference);
             var regex = Regex.Match(input, @"^(?<major>\d+?)(\.|$)(?<minor>\d+?)?(\.|$)(?<build>\d+?)?(\.|$)(?<rev>\d+?)?$");
             if (!regex.Success) return false;
-            version.Major = Int32.TryParse(regex.Groups["major"].Value, out var major) ? major : 0;
-            version.Minor = Int32.TryParse(regex.Groups["minor"].Value, out var minor) ? new int?(minor) : null;
-            version.Build = Int32.TryParse(regex.Groups["build"].Value, out var build) ? new int?(build) : null;
-            version.Revision = Int32.TryParse(regex.Groups["rev"].Value, out var rev) ? new int?(rev) : null;
+            version.Major = int.TryParse(regex.Groups["major"].Value, out var major) ? major : 0;
+            version.Minor = int.TryParse(regex.Groups["minor"].Value, out var minor) ? new int?(minor) : null;
+            version.Build = int.TryParse(regex.Groups["build"].Value, out var build) ? new int?(build) : null;
+            version.Revision = int.TryParse(regex.Groups["rev"].Value, out var rev) ? new int?(rev) : null;
             return true;
         }
 
@@ -280,6 +292,63 @@ namespace uppm.Core.Utils
                 MissingInference(_build),
                 MissingInference(_revision)
             };
+        }
+
+        /// <summary>
+        /// Is this version in a range with a simple syntax (see remarks)
+        /// </summary>
+        /// <param name="range">Version range syntax</param>
+        /// <param name="missinginference">Optional missing semantic component inference</param>
+        /// <returns>True if the version is inside the range</returns>
+        /// <remarks>
+        /// <para>Range is a sequence of versions optionally prefixed with a relation
+        /// (&gt; newer, &lt; older, = same, &gt;=, &lt;=) and
+        /// optionally separated by logical operations (| OR, &amp; AND).
+        /// If no relation is specified `=` is assumed, and if no operation is
+        /// specified `|` is assumed. For example:</para>
+        /// <para>List of compatible versions separated only by whitespaces</para>
+        /// <code>1.2.3 4.5.6 7.8.9
+        /// </code>
+        /// <para>Compatible version range</para>
+        /// <code>&gt;1.2.3 &amp; &lt;4.5.6
+        /// </code>
+        /// <para>Operations between versions act as a sequence, not taking mathematical
+        /// precedence into account. so:</para>
+        /// <code>
+        /// new UppmVersion(1,2,3).IsInsideRange("=1.2.3 | =4.5.6 &amp; =7.8.9"); // returns false
+        /// </code>
+        /// <para>yields false despite the fact that mathematically speaking it should
+        /// yield true. This is a limitation of current solution processing the range
+        /// text. It might switch in the future to a mathematically correct way.</para>
+        /// </remarks>
+        public bool IsInsideRange(string range, MissingInferenceDelegate missinginference = null)
+        {
+            missinginference = missinginference ?? Inference.Newest;
+
+            var matches = Regex.Matches(
+                range,
+                @"(?<operation>[\&\|])?\s*(?<relation>(\<|\<\=|\>|\>\=|\=))?\s*(?<version>[\d\.]+)"
+            );
+
+            var gres = false;
+
+            foreach (Match match in matches)
+            {
+                var operation = match.Groups["operation"].Success ? match.Groups["operation"].Value : "|";
+                var relation = match.Groups["relation"].Success ? match.Groups["relation"].Value : "=";
+                var version = match.Groups["version"].Success ? match.Groups["version"].Value : "";
+
+                if(!TryParse(version, out var cversion, missinginference)) continue;
+                var res = Comparison.Shortcuts[relation](this, cversion);
+
+                switch (operation)
+                {
+                    case "|": gres = gres || res; break;
+                    case "&": gres = gres && res; break;
+                }
+            }
+
+            return gres;
         }
 
         /// <summary>

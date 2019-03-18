@@ -6,8 +6,8 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using log4net;
 using Microsoft.Win32;
+using Serilog;
 
 namespace uppm.Core
 {
@@ -26,39 +26,55 @@ namespace uppm.Core
     /// Uppm can target any associated application it manages packages for.
     /// This class contains information about such a target application
     /// </summary>
-    public class TargetApplication : ILogSource
+    public abstract class TargetApplication : ILogSource
     {
-        private string _folder;
+        protected string PAppFolder;
+        protected string PGlobalPacksFolder;
+        protected string PLocalPacksFolder;
 
         /// <summary>
-        /// Short, friendly name of the application (like "vvvv")
+        /// Short, friendly name of the application (like "ue4" or "vvvv")
         /// </summary>
         public virtual string ShortName { get; set; }
 
         /// <summary>
-        /// Containing folder of the application
+        /// Containing folder of the application. Override setter for validation and inference.
         /// </summary>
-        public virtual string Folder
+        public virtual string AppFolder
         {
-            get => _folder;
-            set => _folder = FolderValidation(value);
+            get => PAppFolder;
+            set => PAppFolder = CurrentOrNewFolder(value);
+        }
+
+        /// <summary>
+        /// Folder for the packs installed at global scope. Override setter for validation and inference.
+        /// </summary>
+        public virtual string GlobalPacksFolder
+        {
+            get => PGlobalPacksFolder;
+            set => PGlobalPacksFolder = CurrentOrNewFolder(value);
+        }
+
+        /// <summary>
+        /// Folder for the packs installed at local scope. Override setter for validation and inference.
+        /// </summary>
+        public virtual string LocalPacksFolder
+        {
+            get => PLocalPacksFolder;
+            set => PLocalPacksFolder = CurrentOrNewFolder(value);
         }
 
         /// <summary>
         /// Executable filename without path
         /// </summary>
-        public virtual string Exe { get; set; }
+        public virtual string Executable { get; set; }
 
         /// <summary>
         /// Full path to executable
         /// </summary>
-        public string AbsoluteExe => Path.GetFullPath(Path.Combine(Folder, Exe));
+        public string AbsoluteExe => Path.GetFullPath(Path.Combine(AppFolder, Executable));
 
-        /// <summary>
-        /// Folder validation or inference function. If the assigned function returns null or empty string,
-        /// validation is not successful and this target application cannot be managed by uppm
-        /// </summary>
-        public virtual Func<string, string> FolderValidation { get; set; } = dir =>
+        protected string CurrentOrNewFolder(string dir)
         {
             if (string.IsNullOrWhiteSpace(dir)) return Environment.CurrentDirectory;
             var adir = Path.GetFullPath(dir);
@@ -68,13 +84,13 @@ namespace uppm.Core
                 Directory.CreateDirectory(adir);
                 return adir;
             }
-        };
+        }
 
         /// <summary>
-        /// Gets the processor architecture or the machine type of the target application 
+        /// Gets the processor architecture or the machine type of the target application.
         /// </summary>
         /// <returns></returns>
-        public MachineType GetArchitecture()
+        public virtual MachineType GetArchitecture()
         {
             const int PE_POINTER_OFFSET = 60;
             const int MACHINE_OFFSET = 4;
@@ -93,44 +109,66 @@ namespace uppm.Core
         /// Gets the file version of the target application
         /// </summary>
         /// <returns></returns>
-        public Version GetVersion()
+        public virtual UppmVersion GetVersion()
         {
             var vinfo = FileVersionInfo.GetVersionInfo(AbsoluteExe);
-            return new Version(vinfo.FileMajorPart, vinfo.FileMinorPart, vinfo.FileBuildPart);
+            return new UppmVersion(vinfo.FileMajorPart, vinfo.FileMinorPart, vinfo.FileBuildPart);
         }
 
         /// <inheritdoc />
-        public ILog Log { get; set; }
+        public ILogger Log { get; set; }
     }
 
+    /// <summary>
+    /// Target application is vvvv
+    /// </summary>
     public class VvvvApplication : TargetApplication
     {
+        /// <inheritdoc />
         public override string ShortName { get => "vvvv"; set { } }
 
-        public override string Exe { get => "vvvv.exe"; set { } }
+        /// <inheritdoc />
+        public override string Executable { get => "vvvv.exe"; set { } }
 
-        public override Func<string, string> FolderValidation
+        /// <inheritdoc />
+        public override string AppFolder
         {
-            get => dir =>
-            {
-                if (string.IsNullOrWhiteSpace(dir))
-                {
-                    var regkey = (string)Registry.GetValue("HKEY_CLASSES_ROOT\\VVVV\\Shell\\Open\\Command", "", "");
-                    if (string.IsNullOrWhiteSpace(regkey))
-                    {
-                        Log.UInfo("There's no VVVV registered, using working directory", this);
-                        return Environment.CurrentDirectory;
-                    }
-                    else
-                    {
-                        var exepath = regkey.Split(' ')[0].Replace("\"", "");
-                        //Console.WriteLine("Found a VVVV in registry.");
-                        return Path.GetDirectoryName(Path.GetFullPath(exepath));
-                    }
-                }
-                return base.FolderValidation(dir);
-            };
+            get => PAppFolder;
+            set => PAppFolder = GetVvvvFolder(value);
+        }
+
+        /// <inheritdoc />
+        public override string GlobalPacksFolder
+        {
+            get => PAppFolder;
             set { }
+        }
+
+        /// <inheritdoc />
+        public override string LocalPacksFolder
+        {
+            get => PAppFolder;
+            set { }
+        }
+
+        private string GetVvvvFolder(string dir)
+        {
+            if (string.IsNullOrWhiteSpace(dir))
+            {
+                var regkey = (string)Registry.GetValue("HKEY_CLASSES_ROOT\\VVVV\\Shell\\Open\\Command", "", "");
+                if (string.IsNullOrWhiteSpace(regkey))
+                {
+                    Log.Information("There's no VVVV registered, using working directory", this);
+                    return Environment.CurrentDirectory;
+                }
+                else
+                {
+                    var exepath = regkey.Split(' ')[0].Replace("\"", "");
+                    //Console.WriteLine("Found a VVVV in registry.");
+                    return Path.GetDirectoryName(Path.GetFullPath(exepath));
+                }
+            }
+            return CurrentOrNewFolder(dir);
         }
     }
 }
