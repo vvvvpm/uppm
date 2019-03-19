@@ -235,11 +235,11 @@ namespace uppm.Core
         {
             Log.Warning(
 @"Conflicting versions are referenced of the same package as dependencies by other packages: {KeptName}
-kept version    `{$KeptVersion}`
-skipped version `{$SkippedVersion}`
+    kept version    `{$KeptVersion}`
+    skipped version `{$SkippedVersion}`
 
-Multiple package versions are not supported in uppm by design. Only one of them will be installed.
-This might be OK and best case scenario nothing will break.",
+    Multiple package versions are not supported in uppm by design. Only one of them will be installed.
+    This might be OK and best case scenario nothing will break.",
                 kept.Meta.Name,
                 kept.Meta.Version,
                 skipped.Meta.Version
@@ -250,10 +250,10 @@ This might be OK and best case scenario nothing will break.",
         {
             Log.Warning(
 @"More specific version is referenced of the same package as dependencies by other packages: {KeptName}
-kept version `{$KeptVersion}`
+    kept version `{$KeptVersion}`
 
-Multiple package versions are not supported in uppm by design. Only one of them will be installed.
-This might be OK and best case scenario nothing will break.",
+    Multiple package versions are not supported in uppm by design. Only one of them will be installed.
+    This might be OK and best case scenario nothing will break.",
                 kept.Meta.Name,
                 kept.Meta.Version
             );
@@ -263,11 +263,11 @@ This might be OK and best case scenario nothing will break.",
         {
             Log.Warning(
 @"Potentially incompatible versions are referenced of the same package as dependencies by other packages: {KeptName}
-kept higher version   `{$KeptVersion}`
-skipped lower version `{$SkippedVersion}`
+    kept higher version   `{$KeptVersion}`
+    skipped lower version `{$SkippedVersion}`
 
-Multiple package versions are not supported in uppm by design. Only one of them will be installed.
-This might be OK and best case scenario nothing will break.",
+    Multiple package versions are not supported in uppm by design. Only one of them will be installed.
+    This might be OK and best case scenario nothing will break.",
                 kept.Meta.Name,
                 kept.Meta.Version,
                 skipped.Meta.Version

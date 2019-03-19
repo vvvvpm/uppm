@@ -296,13 +296,14 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ILogSource.cs" />
-    <Compile Include="IUppmImplementation.cs" />
+    <Compile Include="LogSource.cs" />
+    <Compile Include="UppmImplementation.cs" />
     <Compile Include="Package.cs" />
     <Compile Include="PackageMeta.cs" />
     <Compile Include="PackageReference.cs" />
     <Compile Include="Repositories\FileSystemPackageRepository.cs" />
     <Compile Include="Repositories\GitPackageRepository.cs" />
+    <Compile Include="Scripting\PowerShellScriptEngine.cs" />
     <Compile Include="Scripting\ScriptHost.cs" />
     <Compile Include="Repositories\IPackageRepository.cs" />
     <Compile Include="Scripting\CSharpScriptEngine.cs" />

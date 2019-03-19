@@ -25,7 +25,7 @@ namespace uppm.Core
         /// <summary>
         /// True if associated entity is compatible with currently running uppm
         /// </summary>
-        public bool VersionValid => MinimalVersion <= UppmVersion.CoreVersion;
+        public bool VersionValid => MinimalVersion <= Uppm.CoreVersion;
     }
 
     /// <summary>
@@ -141,11 +141,6 @@ namespace uppm.Core
                 {">=", SameOrNewer }
             };
         }
-
-        /// <summary>
-        /// Version of the currently loaded uppm.Core
-        /// </summary>
-        public static UppmVersion CoreVersion { get; } = new UppmVersion(typeof(UppmVersion).Assembly.GetName().Version);
 
         /// <summary>
         /// Try parsing a string as <see cref="UppmVersion"/>
