@@ -120,6 +120,29 @@ namespace uppm.Core
     }
 
     /// <summary>
+    /// In case the current package manager is the target application
+    /// </summary>
+    public class CurrentUppmApplication : TargetApplication
+    {
+        /// <inheritdoc />
+        public override string AppFolder
+        {
+            get => Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            set { }
+        }
+
+        /// <inheritdoc />
+        public override string GlobalPacksFolder
+        {
+            get => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), Uppm.Implementation.GetSystemName());
+            set { }
+        }
+
+        /// <inheritdoc />
+        public override string ShortName => Uppm.Implementation.GetSystemName();
+    }
+
+    /// <summary>
     /// Target application is vvvv
     /// </summary>
     public class VvvvApplication : TargetApplication
