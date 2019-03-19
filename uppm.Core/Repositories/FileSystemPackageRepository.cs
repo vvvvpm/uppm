@@ -17,13 +17,13 @@ namespace uppm.Core.Repositories
     public class FileSystemPackageRepository : IPackageRepository
     {
         /// <inheritdoc />
-        public bool Ready { get; }
+        public bool Ready { get; private set; }
 
         /// <inheritdoc />
         public string Url { get; set; }
 
         /// <inheritdoc />
-        public Exception RefreshError { get; }
+        public Exception RefreshError { get; private set; }
 
         private readonly Dictionary<CompletePackageReference, string> _packages = new Dictionary<CompletePackageReference, string>();
 
@@ -125,11 +125,23 @@ namespace uppm.Core.Repositories
         /// <inheritdoc />
         public bool RepositoryReferenceValid()
         {
+            //TODO: Handle relative paths to Uppm.WorkingDirectory
             if (Url.StartsWith("\\\\") ||
                 Url.StartsWith("//") ||
                 Regex.IsMatch(Url, @"^\w\:[\\\/]"))
             {
                 return Directory.Exists(Url.Replace('/', '\\'));
+            }
+            return false;
+        }
+
+        public static bool IsRelative(string input, out string absolute)
+        {
+            absolute = "";
+            if (input.StartsWith("./") || input.StartsWith(".\\"))
+            {
+                absolute = Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, input.Replace('/', '\\')));
+                return true;
             }
             return false;
         }
