@@ -71,9 +71,6 @@ namespace uppm.Core.Scripting
         };
 
         /// <inheritdoc />
-        public IUppmImplementation Uppm { get; set; } = new UnknownUppmImplementation();
-
-        /// <inheritdoc />
         public string Extension => "csup";
 
         /// <inheritdoc />
@@ -82,73 +79,12 @@ namespace uppm.Core.Scripting
         /// <inheritdoc />
         public bool TryGetMeta(string text, ref PackageMeta packmeta, out VersionRequirement requiredVersion, CompletePackageReference packref = null)
         {
-            var matches = text.MatchGroup(
-                @"\A\/\*\s+uppm\s+(?<uppmversion>[\d\.]+)\s+(?<packmeta>\{.*\})\s+\*\/",
-                RegexOptions.CultureInvariant |
-                RegexOptions.IgnoreCase |
-                RegexOptions.Singleline);
-
-            packmeta = packmeta ?? new PackageMeta();
-            if (packref != null) packmeta.Self = packref;
-            packmeta.Text = text;
-
-            requiredVersion = new VersionRequirement();
-
-            if (matches == null ||
-                matches.Count == 0 ||
-                matches["uppmversion"]?.Length <= 0 ||
-                matches["packmeta"]?.Length <= 0
-            )
-            {
-                Log.Error("{PackRef} doesn't contain valid metadata.", packref?.ToString() ?? "Script");
-                return false;
-            }
-
-            if (UppmVersion.TryParse(matches["uppmversion"].Value, out var minuppmversion, UppmVersion.Inference.Zero))
-            {
-                requiredVersion.MinimalVersion = minuppmversion;
-                requiredVersion.Valid = minuppmversion <= UppmVersion.CoreVersion;
-                packmeta.RequiredUppmVersion = requiredVersion;
-                var metatext = matches["packmeta"].Value;
-                try
-                {
-                    PackageMeta.ParseFromHjson(metatext, ref packmeta);
-                }
-                catch (Exception e)
-                {
-                    Log.Error(e, "Parsing metadata of {PackRef} threw an exception.", packref?.ToString() ?? "script");
-                    requiredVersion.Valid = false;
-                    return false;
-                }
-
-                if (requiredVersion.Valid)
-                {
-                    if (TryGetScriptText(text, out var scripttext, packmeta.Imports))
-                    {
-                        packmeta.ScriptText = scripttext;
-                        return true;
-                    }
-                    else
-                    {
-                        Log.Error("Couldn't get the script text of {PackRef}.", packref?.ToString() ?? packmeta.Name);
-                        return false;
-                    }
-                }
-                else
-                {
-                    Log.Error(
-                        "{PackRef} requires at least uppm {$RequiredMinVersion}. " +
-                        "It's incompatible with Current version of uppm ({$UppmVersion})",
-                        packref?.ToString() ?? packmeta.Name,
-                        requiredVersion.MinimalVersion,
-                        UppmVersion.CoreVersion);
-                    return false;
-                }
-            }
-            {
-                Log.Error("{PackRef} doesn't contain valid metadata.", packref?.ToString() ?? "Script");
-                return false;
-            }
+            return this.TryGetCommonHjsonMeta(
+                text,
+                @"\/\*", @"\*\/",
+                ref packmeta,
+                out requiredVersion,
+                packref);
         }
 
         /// <inheritdoc />
@@ -176,7 +112,7 @@ namespace uppm.Core.Scripting
                 compctx.Loader.RegisterDependency(ass);
             }
 
-            var host = new ScriptHost(pack, Uppm);
+            var host = new ScriptHost(pack, Uppm.Implementation);
 
             var scriptResult = await compctx.Script.RunAsync(host, exception =>
             {

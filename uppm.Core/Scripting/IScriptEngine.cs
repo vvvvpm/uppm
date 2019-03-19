@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Fasterflect;
+using md.stdl.String;
+using Serilog;
 using uppm.Core.Utils;
 
 namespace uppm.Core.Scripting
@@ -18,11 +21,6 @@ namespace uppm.Core.Scripting
     /// </summary>
     public interface IScriptEngine : ILogSource
     {
-        /// <summary>
-        /// Information about the currently running implementation of uppm
-        /// </summary>
-        IUppmImplementation Uppm { get; set; }
-
         /// <summary>
         /// File extension to be associated with this scriptengine, without starting dot.
         /// </summary>
@@ -88,6 +86,11 @@ namespace uppm.Core.Scripting
             return KnownScriptEngines.TryGetValue(extension, out engine);
         }
 
+        /// <summary>
+        /// Loads engines from given assembly. Implementation should call this
+        /// before any package processed in case they want to load their own script engine.
+        /// </summary>
+        /// <param name="assembly"></param>
         public static void LoadEngines(Assembly assembly)
         {
             var enginetypes = assembly.GetTypes().Where(t => t.GetInterfaces().Any(i => i == typeof(IScriptEngine)));
@@ -95,6 +98,148 @@ namespace uppm.Core.Scripting
             {
                 var engine = enginetype.CreateInstance() as IScriptEngine;
                 //if(engine == null) continue;
+            }
+        }
+
+        /// <summary>
+        /// Try to get the meta comment text of a script
+        /// </summary>
+        /// <param name="engine"></param>
+        /// <param name="text">text of the entire package</param>
+        /// <param name="commentStartRegexPattern">a regex pattern for comment start</param>
+        /// <param name="commentEndRegexPattern">a regex pattern for comment end</param>
+        /// <param name="metaText">output meta text if valid</param>
+        /// <param name="requiredVersion">output version requirement if valid</param>
+        /// <param name="packref">optional pack reference for logging to know which pack we're talking about.</param>
+        /// <returns>True if the meta comment was found successfully</returns>
+        public static bool TryGetScriptMultilineMetaComment(
+            this IScriptEngine engine,
+            string text,
+            string commentStartRegexPattern,
+            string commentEndRegexPattern,
+            out string metaText,
+            out VersionRequirement requiredVersion,
+            CompletePackageReference packref = null)
+        {
+            metaText = "";
+            requiredVersion = new VersionRequirement();
+
+            var matches = text.MatchGroup(
+                $@"{commentStartRegexPattern}\s+uppm\s+(?<uppmversion>[\d\.]+)\s+(?<packmeta>\{{.*\}})\s+{commentEndRegexPattern}",
+                RegexOptions.CultureInvariant |
+                RegexOptions.IgnoreCase |
+                RegexOptions.Singleline);
+
+            if (matches == null ||
+                matches.Count == 0 ||
+                matches["uppmversion"]?.Length <= 0 ||
+                matches["packmeta"]?.Length <= 0
+            )
+            {
+                engine.Log.Error("{PackRef} doesn't contain valid metadata.", packref?.ToString() ?? "Script");
+                return false;
+            }
+
+            if (UppmVersion.TryParse(matches["uppmversion"].Value, out var minuppmversion, UppmVersion.Inference.Zero))
+            {
+                requiredVersion.MinimalVersion = minuppmversion;
+                requiredVersion.Valid = minuppmversion <= Uppm.CoreVersion;
+                metaText = matches["packmeta"].Value;
+                if (!requiredVersion.Valid)
+                {
+                    Log.Error(
+                        "{PackRef} requires at least uppm {$RequiredMinVersion}. " +
+                        "It's incompatible with Current version of uppm ({$UppmVersion})",
+                        packref?.ToString() ?? "Script",
+                        requiredVersion.MinimalVersion,
+                        Uppm.CoreVersion);
+                    return false;
+                }
+                return true;
+            }
+            Log.Error("{PackRef} doesn't contain valid metadata.", packref?.ToString() ?? "Script");
+            return false;
+        }
+
+        /// <summary>
+        /// Try to get <see cref="PackageMeta"/> out of an already extracted HJSON meta text
+        /// </summary>
+        /// <param name="engine"></param>
+        /// <param name="metaText">already extracted meta text in HJSON format</param>
+        /// <param name="packMeta">reference to a <see cref="PackageMeta"/>.
+        /// if reference is null a new one will be created and assigned to it</param>
+        /// <param name="packref">optional pack reference for logging to know which pack we're talking about.</param>
+        /// <returns>True if package metadata was parsed successfully</returns>
+        public static bool TryGetHjsonScriptMultilineMeta(
+            this IScriptEngine engine,
+            string metaText,
+            ref PackageMeta packMeta,
+            CompletePackageReference packref = null)
+        {
+            packMeta = packMeta ?? new PackageMeta();
+            if (packref != null) packMeta.Self = packref;
+            try
+            {
+                PackageMeta.ParseFromHjson(metaText, ref packMeta);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "Parsing metadata of {PackRef} threw an exception.", packref?.ToString() ?? "script");
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Common implementation for <see cref="IScriptEngine.TryGetMeta"/> in case
+        /// package defines metadata as HJSON in a multiline comment
+        /// </summary>
+        /// <param name="engine"></param>
+        /// <param name="text">text of the entire package</param>
+        /// <param name="commentStartRegexPattern">a regex pattern for comment start</param>
+        /// <param name="commentEndRegexPattern">a regex pattern for comment end</param>
+        /// <param name="packMeta">reference to a <see cref="PackageMeta"/>.
+        /// if reference is null a new one will be created and assigned to it</param>
+        /// <param name="requiredVersion">output version requirement if valid</param>
+        /// <param name="packref">optional pack reference for logging to know which pack we're talking about.</param>
+        /// <returns>True if package metadata was parsed successfully</returns>
+        public static bool TryGetCommonHjsonMeta(
+            this IScriptEngine engine,
+            string text,
+            string commentStartRegexPattern,
+            string commentEndRegexPattern,
+            ref PackageMeta packMeta,
+            out VersionRequirement requiredVersion,
+            CompletePackageReference packref = null)
+        {
+            if (!engine.TryGetScriptMultilineMetaComment(
+                text,
+                commentStartRegexPattern,
+                commentEndRegexPattern,
+                out var metatext,
+                out requiredVersion,
+                packref))
+                return false;
+
+            packMeta = packMeta ?? new PackageMeta();
+            packMeta.Text = text;
+            packMeta.RequiredUppmVersion = requiredVersion;
+
+            if (!engine.TryGetHjsonScriptMultilineMeta(
+                metatext,
+                ref packMeta,
+                packref))
+                return false;
+
+            if (engine.TryGetScriptText(text, out var scripttext, packMeta.Imports))
+            {
+                packMeta.ScriptText = scripttext;
+                return true;
+            }
+            else
+            {
+                Log.Error("Couldn't get the script text of {PackRef}.", packref?.ToString() ?? packMeta.Name);
+                return false;
             }
         }
     }
