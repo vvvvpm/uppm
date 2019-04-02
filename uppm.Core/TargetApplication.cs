@@ -115,8 +115,19 @@ namespace uppm.Core
             return new UppmVersion(vinfo.FileMajorPart, vinfo.FileMinorPart, vinfo.FileBuildPart);
         }
 
+        public TargetApplication()
+        {
+            Log = this.GetContext();
+        }
+
         /// <inheritdoc />
-        public ILogger Log { get; set; }
+        public ILogger Log { get; }
+
+        /// <inheritdoc />
+        public event UppmProgressHandler OnProgress;
+
+        /// <inheritdoc />
+        public void InvokeProgress(ProgressEventArgs progress) => OnProgress?.Invoke(this, progress);
     }
 
     /// <summary>

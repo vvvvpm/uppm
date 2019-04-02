@@ -90,6 +90,12 @@ namespace uppm.Core.Scripting
         /// <inheritdoc />
         public ILogger Log { get; }
 
+        /// <inheritdoc />
+        public event UppmProgressHandler OnProgress;
+
+        /// <inheritdoc />
+        public void InvokeProgress(ProgressEventArgs progress) => OnProgress?.Invoke(this, progress);
+
         /// <summary></summary>
         /// <param name="pack">The associated package</param>
         /// <param name="uppm">The executing package manager</param>

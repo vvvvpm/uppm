@@ -130,8 +130,14 @@ namespace uppm.Core.Scripting
                 }
                 else
                 {
-                    commandDelegate();
-                    //TODO exception handling
+                    try
+                    {
+                        commandDelegate();
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error(e, "Script of {$PackRef} thrown an unhandled exception", pack.Meta.Self);
+                    }
                 }
             }
             else
@@ -142,6 +148,12 @@ namespace uppm.Core.Scripting
 
         /// <inheritdoc />
         public ILogger Log { get; }
+
+        /// <inheritdoc />
+        public event UppmProgressHandler OnProgress;
+
+        /// <inheritdoc />
+        public void InvokeProgress(ProgressEventArgs progress) => OnProgress?.Invoke(this, progress);
 
         public CSharpScriptEngine()
         {

@@ -24,6 +24,19 @@ namespace uppm.Core
         /// It is recommended to assign this autoproperty <see cref="UppmLog.GetContext"/> in the constructor.
         /// </remarks>
         ILogger Log { get; }
+
+        /// <summary>
+        /// Event which can produce rapidly changing progress information
+        /// which would potentially pollute or put unnecessary stress onto Serilog loggers.
+        /// </summary>
+        event UppmProgressHandler OnProgress;
+
+        /// <summary>
+        /// Invoke any progress change. This is only meant to be used internally by uppm
+        /// via the extension method <see cref="UppmLog.InvokeAnyProgress"/>
+        /// </summary>
+        /// <param name="progress"></param>
+        void InvokeProgress(ProgressEventArgs progress);
     }
 
     /// <summary>
@@ -88,6 +101,8 @@ namespace uppm.Core
         /// which then uppm can use. Implementation can also specify a function where
         /// the configuration can be extended or completely overriden.
         /// </summary>
+        /// <param name="configure">Optional configuration delegate for a logger</param>
+        /// <param name="subscriber">Optional subscription delegate for an observer. `Next` is called on each logged entry.</param>
         public static void ConfigureLogger(
             Func<LoggerConfiguration, LoggerConfiguration> configure = null,
             Action<IObservable<LogEvent>> subscriber = null
@@ -113,13 +128,23 @@ namespace uppm.Core
             return L.ForContext("UppmSource", source);
         }
 
+        /// <summary>
+        /// Invoke any progress change
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="totalValue"></param>
+        /// <param name="currentValue"></param>
+        /// <param name="state"></param>
+        /// <param name="message"></param>
         public static void InvokeAnyProgress(this ILogSource source, double totalValue = 0, double currentValue = 0, string state = "", string message = "")
         {
-            OnAnyProgress?.Invoke(source, new ProgressEventArgs(totalValue, currentValue, state, message));
+            var prog = new ProgressEventArgs(totalValue, currentValue, state, message);
+            source.InvokeProgress(prog);
+            OnAnyProgress?.Invoke(source, prog);
         }
 
         /// <summary>
-        /// A global event which can produce rapidly changing progess information
+        /// A global event which can produce rapidly changing progress information
         /// which would potentially pollute or put unnecessary stress onto Serilog loggers.
         /// </summary>
         public static event UppmProgressHandler OnAnyProgress;

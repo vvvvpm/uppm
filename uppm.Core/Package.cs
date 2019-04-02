@@ -274,6 +274,12 @@ namespace uppm.Core
             );
         }
 
-        public ILogger Log { get; set; }
+        public ILogger Log { get; }
+
+        /// <inheritdoc />
+        public event UppmProgressHandler OnProgress;
+
+        /// <inheritdoc />
+        public void InvokeProgress(ProgressEventArgs progress) => OnProgress?.Invoke(this, progress);
     }
 }

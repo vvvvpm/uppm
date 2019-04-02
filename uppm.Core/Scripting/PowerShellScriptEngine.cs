@@ -64,6 +64,12 @@ namespace uppm.Core.Scripting
         /// <inheritdoc />
         public ILogger Log { get; }
 
+        /// <inheritdoc />
+        public event UppmProgressHandler OnProgress;
+
+        /// <inheritdoc />
+        public void InvokeProgress(ProgressEventArgs progress) => OnProgress?.Invoke(this, progress);
+
         public PowerShellScriptEngine()
         {
             Log = this.GetContext();
