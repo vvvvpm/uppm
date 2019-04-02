@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using md.stdl.String;
 using Serilog;
 using uppm.Core.Scripting;
 
@@ -16,16 +17,29 @@ namespace uppm.Core.Repositories
     /// </summary>
     public class FileSystemPackageRepository : IPackageRepository
     {
+        private readonly Dictionary<CompletePackageReference, string> _packages = new Dictionary<CompletePackageReference, string>();
+        private string _absolutePath;
+
         /// <inheritdoc />
         public bool Ready { get; private set; }
 
         /// <inheritdoc />
         public string Url { get; set; }
-
+        
         /// <inheritdoc />
         public Exception RefreshError { get; private set; }
 
-        private readonly Dictionary<CompletePackageReference, string> _packages = new Dictionary<CompletePackageReference, string>();
+        /// <summary>
+        /// Absolute path to the desired directory. Derived from Url
+        /// </summary>
+        public string AbsolutePath
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(_absolutePath)) RepositoryReferenceValid();
+                return _absolutePath;
+            }
+        }
 
         /// <inheritdoc />
         public bool TryGetPackage(PartialPackageReference reference, out Package package) =>
@@ -77,12 +91,12 @@ namespace uppm.Core.Repositories
         public bool Refresh()
         {
             if (!RepositoryReferenceValid()) return false;
-            Log.Debug("Scanning folder for packs: {RepoUrl}", Url);
+            Log.Debug("Scanning folder for packs: {RepoUrl}", AbsolutePath);
             _packages.Clear();
 
             try
             {
-                foreach (var authordir in Directory.EnumerateDirectories(Url.Replace('/', '\\')))
+                foreach (var authordir in Directory.EnumerateDirectories(AbsolutePath))
                 {
                     var author = Path.GetFileName(authordir);
                     if (string.IsNullOrEmpty(author)) author = Path.GetDirectoryName(authordir);
@@ -109,12 +123,13 @@ namespace uppm.Core.Repositories
                 }
                 Log.Debug("Found {PackCount} packs", _packages.Count);
                 OnRefreshed?.Invoke(this, EventArgs.Empty);
+                Ready = true;
 
                 return true;
             }
             catch (Exception e)
             {
-                Log.Error(e, "Error occured during refreshing folder pack repository {RepoUrl}", Url);
+                Log.Error(e, "Error occured during refreshing folder pack repository {RepoUrl}", AbsolutePath);
                 return false;
             }
         }
@@ -125,29 +140,29 @@ namespace uppm.Core.Repositories
         /// <inheritdoc />
         public bool RepositoryReferenceValid()
         {
-            //TODO: Handle relative paths to Uppm.WorkingDirectory
             if (Url.StartsWith("\\\\") ||
                 Url.StartsWith("//") ||
                 Regex.IsMatch(Url, @"^\w\:[\\\/]"))
             {
-                return Directory.Exists(Url.Replace('/', '\\'));
+                _absolutePath = Url.Replace('/', '\\');
+                return Directory.Exists(_absolutePath);
             }
-            return false;
-        }
-
-        public static bool IsRelative(string input, out string absolute)
-        {
-            absolute = "";
-            if (input.StartsWith("./") || input.StartsWith(".\\"))
+            if (Url.StartsWithCaselessAny("\\", "/", ".\\", "./", "..\\", "../"))
             {
-                absolute = Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, input.Replace('/', '\\')));
-                return true;
+                _absolutePath = Path.GetFullPath(Path.Combine(Uppm.WorkingDirectory, Url.Replace('/', '\\')));
+                return Directory.Exists(_absolutePath);
             }
             return false;
         }
 
         /// <inheritdoc />
         public ILogger Log { get; }
+
+        /// <inheritdoc />
+        public event UppmProgressHandler OnProgress;
+
+        /// <inheritdoc />
+        public void InvokeProgress(ProgressEventArgs progress) => OnProgress?.Invoke(this, progress);
 
         public FileSystemPackageRepository()
         {
