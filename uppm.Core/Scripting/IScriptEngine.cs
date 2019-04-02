@@ -15,14 +15,14 @@ namespace uppm.Core.Scripting
     /// <inheritdoc />
     /// <summary>
     /// When implemented represents a scripting environment. A script engine is mostly
-    /// specific to a single language. Implementation has to provide exectution of
+    /// specific to a single language. Implementation has to provide execution of
     /// different actions and ways to extract the package metadata and the actual
     /// executable script text from a raw package text.
     /// </summary>
     public interface IScriptEngine : ILogSource
     {
         /// <summary>
-        /// File extension to be associated with this scriptengine, without starting dot.
+        /// File extension to be associated with this script engine, without starting dot.
         /// </summary>
         string Extension { get; }
 

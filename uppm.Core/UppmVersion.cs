@@ -29,18 +29,18 @@ namespace uppm.Core
     }
 
     /// <summary>
-    /// Semantical versioning with scope awareness
+    /// Semantic versioning with scope awareness
     /// </summary>
     /// <remarks>
     /// <para>
-    /// UppmVersion also introduces some more intelligent handling of missing semantical components.
+    /// UppmVersion also introduces some more intelligent handling of missing semantic components.
     /// It introduces version scopes where the higher version components encapsulate all versions
     /// specifying lower version components, if/when they are not explicitly specified in the first place.
     /// </para>
     /// <para>
     /// Example: By default, any version Major.Minor.Build.Rev will be smaller than Major.Minor.Build
     /// which all will be smaller than Major.Minor and the single Major number will be larger than all
-    /// of those. Possibly missing and therefore infered semantical components are represented as
+    /// of those. Possibly missing and therefore inferred semantic components are represented as
     /// nullable integers. Missing semantic component inference can be changed (<see cref="Inference"/>)
     /// </para>
     /// </remarks>
@@ -73,14 +73,14 @@ namespace uppm.Core
         }
 
         /// <summary>
-        /// Delegate type for inferring missing semantical components
+        /// Delegate type for inferring missing semantic components
         /// </summary>
         /// <param name="v">Individual component</param>
         /// <returns>Inferred component</returns>
         public delegate int MissingInferenceDelegate(int? v);
 
         /// <summary>
-        /// Collection of commonly used missing semantical component inference
+        /// Collection of commonly used missing semantic component inference
         /// </summary>
         public static class Inference
         {
@@ -147,8 +147,8 @@ namespace uppm.Core
         /// </summary>
         /// <param name="input">Input string</param>
         /// <param name="version">Output version if successful, 0 Major if not</param>
-        /// <param name="inference">Missing semantical component inference method</param>
-        /// <returns>Wether parsing was successful or not</returns>
+        /// <param name="inference">Missing semantic component inference method</param>
+        /// <returns>Whether parsing was successful or not</returns>
         public static bool TryParse(string input, out UppmVersion version, MissingInferenceDelegate inference = null)
         {
             version = new UppmVersion(0, inference: inference);
@@ -167,17 +167,17 @@ namespace uppm.Core
         private int? _revision;
 
         /// <summary>
-        /// Semantical components as an array
+        /// Semantic components as an array
         /// </summary>
         public int[] Components;
 
         /// <summary>
-        /// Missing semantical component inference method
+        /// Missing semantic component inference method
         /// </summary>
         public MissingInferenceDelegate MissingInference;
 
         /// <summary>
-        /// The semantical scope of this version
+        /// The semantic scope of this version
         /// </summary>
         public SemanticScope Scope
         {
@@ -205,7 +205,7 @@ namespace uppm.Core
         }
 
         /// <summary>
-        /// Possibly breaking changes, substential improvements
+        /// Possibly breaking changes, substenti improvements
         /// </summary>
         public int? Minor
         {
@@ -231,7 +231,7 @@ namespace uppm.Core
         }
 
         /// <summary>
-        /// Minor bugfixes, almost unnoticable improvements, breaking deserves a facepalm
+        /// Minor bugfixes, almost unnoticeable improvements, breaking deserves a facepalm
         /// </summary>
         public int? Revision
         {

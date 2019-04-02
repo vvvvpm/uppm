@@ -73,7 +73,7 @@ namespace uppm.Core
         public static TargetApplication CurrentApplication { get; set; }
 
         /// <summary>
-        /// Overridable synonim to <see cref="Environment.CurrentDirectory"/>
+        /// Overridable synonym to <see cref="Environment.CurrentDirectory"/>
         /// </summary>
         public static string WorkingDirectory
         {
