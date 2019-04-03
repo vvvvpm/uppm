@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using System.Reflection;
 using Fasterflect;
 using md.stdl.Coding;
 using md.stdl.String;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Serilog;
+using uppm.Core.Scripting;
 
 namespace uppm.Core.Repositories
 {
@@ -193,6 +196,59 @@ namespace uppm.Core.Repositories
 
             package = new Package(packmeta, engine);
             return true;
+        }
+
+        /// <summary>
+        /// Gather pack references from a folder where presumably package files are organized according to uppm convention
+        /// </summary>
+        /// <param name="repository"></param>
+        /// <param name="folder"></param>
+        /// <param name="packages"></param>
+        /// <returns></returns>
+        public static bool GatherPackageReferencesFromFolder(
+            this IPackageRepository repository,
+            string folder,
+            Dictionary<CompletePackageReference, string> packages)
+        {
+            Log.Debug("Scanning folder for packs: {RepoUrl}", folder);
+            packages.Clear();
+            try
+            {
+                foreach (var authordir in Directory.EnumerateDirectories(folder))
+                {
+                    var author = Path.GetFileName(authordir);
+                    if (string.IsNullOrEmpty(author)) author = Path.GetDirectoryName(authordir);
+
+                    foreach (var packdir in Directory.EnumerateDirectories(authordir))
+                    {
+                        var pack = Path.GetFileName(packdir);
+                        if (string.IsNullOrEmpty(pack)) pack = Path.GetDirectoryName(packdir);
+
+                        foreach (var versionfile in Directory.EnumerateFiles(packdir))
+                        {
+                            var ext = Path.GetExtension(versionfile)?.Trim('.') ?? "";
+                            if (!ScriptEngine.TryGetEngine(ext, out _)) continue;
+
+                            var version = Path.GetFileNameWithoutExtension(versionfile);
+                            packages.Add(new CompletePackageReference
+                            {
+                                Name = pack,
+                                RepositoryUrl = repository.Url,
+                                Version = version
+                            }, versionfile);
+                        }
+                    }
+                }
+                Log.Debug("Found {PackCount} packs", packages.Count);
+                return true;
+            }
+            catch (Exception e)
+            {
+                repository.Log.Error(e, 
+                    "Error occured during refreshing folder pack repository {RepoUrl}", 
+                    folder);
+                return false;
+            }
         }
 
         /// <summary>

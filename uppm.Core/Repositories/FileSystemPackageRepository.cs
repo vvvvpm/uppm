@@ -91,47 +91,10 @@ namespace uppm.Core.Repositories
         public bool Refresh()
         {
             if (!RepositoryReferenceValid()) return false;
-            Log.Debug("Scanning folder for packs: {RepoUrl}", AbsolutePath);
-            _packages.Clear();
-
-            try
-            {
-                foreach (var authordir in Directory.EnumerateDirectories(AbsolutePath))
-                {
-                    var author = Path.GetFileName(authordir);
-                    if (string.IsNullOrEmpty(author)) author = Path.GetDirectoryName(authordir);
-
-                    foreach (var packdir in Directory.EnumerateDirectories(authordir))
-                    {
-                        var pack = Path.GetFileName(packdir);
-                        if (string.IsNullOrEmpty(pack)) pack = Path.GetDirectoryName(packdir);
-
-                        foreach (var versionfile in Directory.EnumerateFiles(packdir))
-                        {
-                            var ext = Path.GetExtension(versionfile)?.Trim('.') ?? "";
-                            if (!ScriptEngine.TryGetEngine(ext, out _)) continue;
-
-                            var version = Path.GetFileNameWithoutExtension(versionfile);
-                            _packages.Add(new CompletePackageReference
-                            {
-                                Name = pack,
-                                RepositoryUrl = Url,
-                                Version = version
-                            }, versionfile);
-                        }
-                    }
-                }
-                Log.Debug("Found {PackCount} packs", _packages.Count);
-                OnRefreshed?.Invoke(this, EventArgs.Empty);
-                Ready = true;
-
-                return true;
-            }
-            catch (Exception e)
-            {
-                Log.Error(e, "Error occured during refreshing folder pack repository {RepoUrl}", AbsolutePath);
-                return false;
-            }
+            var res = this.GatherPackageReferencesFromFolder(AbsolutePath, _packages);
+            OnRefreshed?.Invoke(this, EventArgs.Empty);
+            Ready = true;
+            return res;
         }
 
         /// <inheritdoc />
