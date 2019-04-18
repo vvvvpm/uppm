@@ -1,3 +1,4 @@
+# WIP
 ### Not operational yet!
 
 # Overview
@@ -60,7 +61,9 @@ uppm-ref:my.pack@D:/local/repo
 
 ## Scripting
 
-Uppm packages are basically C# 7.3 scripts parsed and executed via dotnet-script (and inherently via Roslyn). The metadata is a specifically formatted comment above the script, so already existing C# coding tools can be used with it (mostly). An object is passed to the script execution to be a `host`, which members and functions will become part of the global scope of the script. Each script should return an object which contains `Action` typed members. These translate to actions which can be called via uppm, similar to custom commands of an npm package. The only required action by uppm is `Install`.
+Uppm packages are basically either C# 7.3 scripts parsed and executed via dotnet-script (and inherently via Roslyn) or Powershell scripts. The metadata is a specifically formatted comment above the script, so already existing coding tools can be used with them (mostly).
+
+In C# an object is passed to the script execution to be a `host`, which members and functions will become part of the global scope of the script. Each script should return an object which contains `Action` typed members. These translate to actions which can be called via uppm, similar to custom commands of an npm package. The only required action by uppm is `Install`.
 
 ``` CSharp
 /* uppm 2.0 {
@@ -78,3 +81,5 @@ new
 ```
 
 Notice how you don't need to write out `new Action(...)` and omit the `new` statement. This is because the default `host` object in uppm contains a method called `Action` which just wraps it for you, so you can spare 3+1 characters \o/. You don't have to use anonymous objects you can define your own class as well which contains the `Install` and other action members, it might be just more convenient this way.
+
+In Powershell the entire script is executed upon invoking the Install command, therefore the Powershell script engine only supports the Install command. Uppm sets some variables for the Powershell scripts but it doesn't give extra functions to work with like in C#.
