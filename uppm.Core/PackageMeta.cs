@@ -43,7 +43,7 @@ namespace uppm.Core
             packmeta.Repository = jobj["repository"]?.ToString();
             packmeta.Description = jobj["description"]?.ToString();
             packmeta.CompatibleAppVersion = jobj["compatibleAppVersion"]?.ToString();
-            packmeta.CompatibleAppVersion = jobj["compatibleAppVersion"]?.ToString();
+            packmeta.ForceGlobal = bool.TryParse(jobj["forceGlobal"]?.ToString() ?? "false", out var fg) && fg;
             packmeta.InferSelf();
             packmeta.Dependencies.Clear();
 
@@ -101,6 +101,11 @@ namespace uppm.Core
         /// Optional license text
         /// </summary>
         public string License { get; set; }
+
+        /// <summary>
+        /// Forces installation script to use global installation scope
+        /// </summary>
+        public bool ForceGlobal { get; set; }
 
         /// <summary>
         /// A package can optionally specify a repository explicitly,

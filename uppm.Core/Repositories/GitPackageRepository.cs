@@ -20,9 +20,19 @@ namespace uppm.Core.Repositories
     /// <summary>
     /// Represents a Git repository of packages, see readme.md for further documentation on how uppm expects folder structure.
     /// </summary>
+    /// <remarks>
+    /// So far git repositories are only supported via https. (Github or Gitlab style
+    /// </remarks>
     public class GitPackageRepository : IPackageRepository
     {
+        /// <summary>
+        /// Actively synchronize git repositories (fetch/pull) even if it has been already synchronized
+        /// over the lifetime of this appdomain
+        /// </summary>
+        public static bool ForceSynchronize { get; set; } = false;
+
         private readonly Dictionary<CompletePackageReference, string> _packages = new Dictionary<CompletePackageReference, string>();
+        private string _localRepositoryFolder;
 
         /// <inheritdoc />
         public bool Ready { get; private set; }
@@ -69,28 +79,45 @@ namespace uppm.Core.Repositories
         public bool Synchronized { get; private set; }
 
         /// <inheritdoc />
-        public bool TryGetPackage(PartialPackageReference reference, out Package package)
-        {
-            throw new NotImplementedException();
-        }
+        public bool TryGetPackage(PartialPackageReference reference, out Package package) =>
+            this.CommonTryGetPackage(reference, out package);
 
         /// <inheritdoc />
         public bool TryGetScriptEngine(PartialPackageReference reference, out IScriptEngine extension)
         {
-            throw new NotImplementedException();
+            extension = null;
+            if (!TryInferPackageReference(reference, out var cref)) return false;
+            if (_packages.TryGetValue(cref, out var file))
+            {
+                var ext = Path.GetExtension(file)?.Trim('.') ?? "";
+                return ScriptEngine.TryGetEngine(ext, out extension);
+            }
+            return false;
         }
 
         /// <inheritdoc />
         public bool TryGetPackageText(PartialPackageReference reference, out string packtext)
         {
-            throw new NotImplementedException();
+            packtext = "";
+            if (!TryInferPackageReference(reference, out var cref)) return false;
+
+            if (!_packages.TryGetValue(cref, out var filename)) return false;
+            Log.Verbose("Reading text of {$PackName}", cref);
+            try
+            {
+                packtext = File.ReadAllText(filename);
+                return true;
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "Error reading text of {$PackName}", cref);
+                return false;
+            }
         }
 
         /// <inheritdoc />
-        public bool TryInferPackageReference(PartialPackageReference incomplete, out CompletePackageReference complete)
-        {
-            throw new NotImplementedException();
-        }
+        public bool TryInferPackageReference(PartialPackageReference incomplete, out CompletePackageReference complete) =>
+            this.TryInferPackageReferenceFromCollection(_packages.Keys, incomplete, out complete);
 
         /// <inheritdoc />
         public bool RepositoryExists()
@@ -125,29 +152,49 @@ namespace uppm.Core.Repositories
                 return Exists = false;
             }
         }
+
+        /// <summary>
+        /// The local folder where the repository is stored
+        /// </summary>
+        public string LocalRepositoryFolder
+        {
+            get
+            {
+                if(string.IsNullOrEmpty(_localRepositoryFolder))
+                {
+                    _localRepositoryFolder = Url.MatchGroup(@"^https?\:\/\/(?<reponame>.*?).git[\?\:\$]")["reponame"]?
+                        .Value?
+                        .Replace('/', '_');
+                    _localRepositoryFolder = Path.Combine(Uppm.Implementation.TemporaryFolder, _localRepositoryFolder);
+                }
+                return _localRepositoryFolder;
+            }
+        }
         
         /// <inheritdoc />
         public bool Refresh()
         {
             if (!RepositoryReferenceValid()) return false;
-            var repofolder = Url.MatchGroup(@"^https?\:\/\/(?<reponame>.*?).git[\?\:\$]")["reponame"]?
-                .Value?
-                .Replace('/', '_');
 
-            if (string.IsNullOrEmpty(repofolder)) return false;
-            if (Repository.IsValid(repofolder))
+            if (string.IsNullOrEmpty(LocalRepositoryFolder)) return false;
+            if (Repository.IsValid(LocalRepositoryFolder))
             {
-                GitRepository = GitUtils.Synchronize(this, repofolder, new FetchOptions
-                {
-                    CertificateCheck = CertificateCheck,
-                    CredentialsProvider = CredentialsProvider,
-                    CustomHeaders = CustomHeaders
-                });
+                GitRepository = GitUtils.Synchronize(
+                    LocalRepositoryFolder,
+                    new FetchOptions
+                    {
+                        CertificateCheck = CertificateCheck,
+                        CredentialsProvider = CredentialsProvider,
+                        CustomHeaders = CustomHeaders
+                    },
+                    caller: this
+                );
             }
             else
             {
-                GitRepository = GitUtils.Clone(this, Url,
-                    Path.Combine(Uppm.Implementation.TemporaryFolder, repofolder),
+                GitRepository = GitUtils.Clone(
+                    Url,
+                    LocalRepositoryFolder,
                     new CloneOptions
                     {
                         CertificateCheck = CertificateCheck,
@@ -158,13 +205,15 @@ namespace uppm.Core.Repositories
                             CredentialsProvider = CredentialsProvider,
                             CustomHeaders = CustomHeaders
                         }
-                    });
+                    },
+                    this
+                );
             }
 
             if (GitRepository != null)
             {
                 Synchronized = true;
-                var res = this.GatherPackageReferencesFromFolder(repofolder, _packages);
+                var res = this.GatherPackageReferencesFromFolder(LocalRepositoryFolder, _packages);
                 OnRefreshed?.Invoke(this, EventArgs.Empty);
                 Ready = true;
                 return res;
@@ -186,7 +235,7 @@ namespace uppm.Core.Repositories
 
         /// <inheritdoc />
         public void InvokeProgress(ProgressEventArgs progress) => OnProgress?.Invoke(this, progress);
-
+        
         public GitPackageRepository()
         {
             Log = this.GetContext();

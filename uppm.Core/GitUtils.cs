@@ -12,6 +12,7 @@ namespace uppm.Core.Utils
     {
         private static void LogVerboseRepoOperationEvent(ILogSource caller, RepositoryOperationContext context)
         {
+            if (caller == null) return;
             caller.Log.Debug("    submodule: {SubmoduleName}", context.SubmoduleName);
             caller.Log.Debug("    recursion depth: {RepoRecDepth}", context.RecursionDepth);
             caller.Log.Verbose("    parent: {ParentRepoName}", context.ParentRepositoryPath);
@@ -20,6 +21,7 @@ namespace uppm.Core.Utils
 
         private static RepositoryOperationStarting RepoOperationStart(ILogSource caller, string action) => context =>
         {
+            if (caller == null) return;
             caller.Log.Information(
                 "Repository {RepoAction} started on {RepoName}",
                 action, 
@@ -30,6 +32,7 @@ namespace uppm.Core.Utils
 
         private static RepositoryOperationCompleted RepoOperationEnd(ILogSource caller, string action) => context =>
         {
+            if (caller == null) return;
             caller.Log.Information(
                 "Repository {RepoAction} completed on {RepoName}",
                 action,
@@ -40,32 +43,32 @@ namespace uppm.Core.Utils
         /// <summary>
         /// Clone a git repository. Caller must be provided.
         /// </summary>
-        /// <param name="caller">Required for log and progress origin</param>
         /// <param name="remote"></param>
         /// <param name="dst"></param>
         /// <param name="options"></param>
+        /// <param name="caller">Required for log and progress origin</param>
         /// <returns></returns>
         /// <remarks>
         /// OnCheckoutProgress and OnTransferProgress will be overriden to invoke <see cref="UppmLog.OnAnyProgress"/>.
         /// OnProgress, RepositoryOperationStarting and RepositoryOperationCompleted will be overriden to log
         /// in the uppm Serilog system.
         /// </remarks>
-        public static Repository Clone(ILogSource caller, string remote, string dst, CloneOptions options = null)
+        public static Repository Clone(string remote, string dst, CloneOptions options = null, ILogSource caller = null)
         {
             options = options ?? new CloneOptions();
 
             options.OnCheckoutProgress = (path, steps, totalSteps) =>
             {
-                caller.InvokeAnyProgress(totalSteps, steps, "Checking Out", path);
+                caller?.InvokeAnyProgress(totalSteps, steps, "Checking Out", path);
             };
             options.OnTransferProgress = progress =>
             {
-                caller.InvokeAnyProgress(progress.TotalObjects, progress.ReceivedObjects,"Transferring");
+                caller?.InvokeAnyProgress(progress.TotalObjects, progress.ReceivedObjects,"Transferring");
                 return true;
             };
             options.OnProgress = output =>
             {
-                caller.Log.Debug(output);
+                caller?.Log.Debug(output);
                 return true;
             };
             options.RepositoryOperationStarting = RepoOperationStart(caller, "Cloning");
@@ -78,7 +81,7 @@ namespace uppm.Core.Utils
             }
             catch (Exception e)
             {
-                caller.Log.Fatal(e, "Error during cloning repository {RepoRemoteName}", remote);
+                caller?.Log.Fatal(e, "Error during cloning repository {RepoRemoteName}", remote);
             }
             return null;
         }
@@ -96,7 +99,7 @@ namespace uppm.Core.Utils
         /// OnProgress, RepositoryOperationStarting and RepositoryOperationCompleted will be overriden to log
         /// in the uppm Serilog system.
         /// </remarks>
-        public static Repository Synchronize(ILogSource caller, string repofolder, FetchOptions fetchops = null, CheckoutOptions checkoutops = null)
+        public static Repository Synchronize(string repofolder, FetchOptions fetchops = null, CheckoutOptions checkoutops = null, ILogSource caller = null)
         {
 
             try
@@ -109,17 +112,17 @@ namespace uppm.Core.Utils
                 fetchops.RepositoryOperationCompleted = RepoOperationEnd(caller, "Fetching");
                 fetchops.OnTransferProgress = progress =>
                 {
-                    caller.InvokeAnyProgress(progress.TotalObjects, progress.ReceivedObjects, "Transferring");
+                    caller?.InvokeAnyProgress(progress.TotalObjects, progress.ReceivedObjects, "Transferring");
                     return true;
                 };
                 fetchops.OnProgress = output =>
                 {
-                    caller.Log.Debug(output);
+                    caller?.Log.Debug(output);
                     return true;
                 };
                 checkoutops.OnCheckoutProgress = (path, steps, totalSteps) =>
                 {
-                    caller.InvokeAnyProgress(totalSteps, steps, "Checking Out", path);
+                    caller?.InvokeAnyProgress(totalSteps, steps, "Checking Out", path);
                 };
 
                 var remote = repo.Network.Remotes["origin"];
@@ -130,7 +133,7 @@ namespace uppm.Core.Utils
             }
             catch (Exception e)
             {
-                caller.Log.Error(e, "Error opening or checking out locally available repository. ({RepoUrl})", repofolder);
+                caller?.Log.Error(e, "Error opening or checking out locally available repository. ({RepoUrl})", repofolder);
                 return null;
             }
         }

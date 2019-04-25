@@ -8,8 +8,6 @@ using Serilog.Core;
 using Serilog.Enricher;
 using Serilog.Events;
 
-//TODO: adopt to Serilog
-
 namespace uppm.Core
 {
     /// <summary>
