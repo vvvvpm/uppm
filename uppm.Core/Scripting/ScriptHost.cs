@@ -75,7 +75,7 @@ namespace uppm.Core.Scripting
         /// <summary>
         /// Information about the target application of the package manager
         /// </summary>
-        public TargetApplication Application { get; set; }
+        public TargetApp Application { get; set; }
 
         /// <summary>
         /// Information about the package manager

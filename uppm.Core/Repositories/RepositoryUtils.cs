@@ -56,10 +56,20 @@ namespace uppm.Core.Repositories
         /// Default repositories must be specified and completely initialized by the
         /// implementer of uppm.Core before any other uppm operations take place.
         /// </remarks>
-        public static void SetDefaultRepository(this IPackageRepository repository)
+        public static void RegisterDefaultRepository(this IPackageRepository repository)
         {
             DefaultRepositories.UpdateGeneric(repository.Url, repository);
             PresentRepositories.UpdateGeneric(repository.Url, repository);
+        }
+
+        /// <summary>
+        /// Remove a registered default repository
+        /// </summary>
+        /// <param name="repository"></param>
+        public static void UnregisterDefaultRepository(this IPackageRepository repository)
+        {
+            if (DefaultRepositories.ContainsKey(repository.Url))
+                DefaultRepositories.Remove(repository.Url);
         }
         
         internal static void RegisterRepository(this IPackageRepository repository)

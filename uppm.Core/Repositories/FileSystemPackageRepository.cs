@@ -79,10 +79,8 @@ namespace uppm.Core.Repositories
         }
 
         /// <inheritdoc />
-        public bool TryInferPackageReference(PartialPackageReference incomplete, out CompletePackageReference complete)
-        {
-            return this.TryInferPackageReferenceFromCollection(_packages.Keys, incomplete, out complete);
-        }
+        public bool TryInferPackageReference(PartialPackageReference incomplete, out CompletePackageReference complete) =>
+            this.TryInferPackageReferenceFromCollection(_packages.Keys, incomplete, out complete);
 
         /// <inheritdoc />
         public bool RepositoryExists() => RepositoryReferenceValid();

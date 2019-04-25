@@ -41,6 +41,11 @@ namespace uppm.Core
         public IScriptEngine Engine { get; }
 
         /// <summary>
+        /// The selected target application of this package
+        /// </summary>
+        public TargetApp TargetApp { get; set; }
+
+        /// <summary>
         /// Branch depth in the dependency tree counted from root == 0
         /// </summary>
         public int DependencyTreeDepth { get; set; }

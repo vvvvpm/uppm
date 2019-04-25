@@ -67,6 +67,11 @@ namespace uppm.Core
         public PackageReference Self { get; set; }
 
         /// <summary>
+        /// Reference to the <see cref="TargetApp"/> which this package is created for
+        /// </summary>
+        public string TargetApp { get; set; }
+
+        /// <summary>
         /// Required uppm version for this pack
         /// </summary>
         public VersionRequirement RequiredUppmVersion { get; set; }

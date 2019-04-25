@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using md.stdl.String;
 using uppm.Core.Repositories;
@@ -46,10 +47,25 @@ namespace uppm.Core
         public static PartialPackageReference Parse(string refstring)
         {
             var crefstring = refstring;
+            string targetapp = null;
             if (refstring.StartsWithCaseless(UppmUriScheme))
             {
                 crefstring = Uri.UnescapeDataString(refstring);
-                crefstring = crefstring.Replace(UppmUriScheme, "");
+                var rgx = new Regex($@"{Regex.Escape(UppmUriScheme)}(?<app>\w+):");
+                var matches = rgx.Match(crefstring);
+                if (matches.Success)
+                {
+                    targetapp = matches.Groups["app"].Value;
+                    crefstring = rgx.Replace(crefstring, "");
+                }
+                else
+                {
+                    UppmLog.L.Error(
+                        "Cannot parse {Url} as package reference because it has invalid format",
+                        refstring
+                    );
+                    return null;
+                }
             }
             var regexmatches = refstring.MatchGroup(
                 @"^(?<name>[^@\:]+?)" + // name
@@ -64,7 +80,8 @@ namespace uppm.Core
                     {
                         Name = name,
                         RepositoryUrl = regexmatches["repo"]?.Value,
-                        Version = regexmatches["version"]?.Value
+                        Version = regexmatches["version"]?.Value,
+                        TargetApp = targetapp
                     };
                 }
                 else return null;
@@ -76,6 +93,11 @@ namespace uppm.Core
         /// Name of the referred package
         /// </summary>
         public string Name { get; set; }
+
+        /// <summary>
+        /// Optionally specify target application if user input is coming from uppm-ref URI
+        /// </summary>
+        public string TargetApp { get; set; }
 
         /// <summary>
         /// Repository URL of the referred package

@@ -54,7 +54,7 @@ namespace uppm.Core
         private static string _workingDirectory = Environment.CurrentDirectory;
         
         /// <summary>
-        /// Gets the name which will be used system wide to call or manage given implementation of uppm
+        /// Gets the name which will be used system wide to differentiate between uppm implementations
         /// </summary>
         /// <returns></returns>
         public static string GetSystemName(this IUppmImplementation impl)
@@ -65,15 +65,10 @@ namespace uppm.Core
         /// <summary>
         /// Current implementer of Uppm
         /// </summary>
-        public static IUppmImplementation Implementation { get; set; }
+        public static IUppmImplementation Implementation { get; set; } = new DefaultUppmImplementation();
 
         /// <summary>
-        /// Currently targeted application
-        /// </summary>
-        public static TargetApplication CurrentApplication { get; set; }
-
-        /// <summary>
-        /// Overridable synonym to <see cref="Environment.CurrentDirectory"/>
+        /// Assignable synonym to <see cref="Environment.CurrentDirectory"/>
         /// </summary>
         public static string WorkingDirectory
         {
@@ -108,7 +103,7 @@ namespace uppm.Core
     /// Default implementation of <see cref="IUppmImplementation"/> in case the uppm.Core
     /// implementation doesn't specify one.
     /// </summary>
-    public class UnknownUppmImplementation : UppmImplementation
+    public class DefaultUppmImplementation : UppmImplementation
     {
         public override string ShortName => "";
     }

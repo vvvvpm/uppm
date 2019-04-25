@@ -11,7 +11,7 @@ namespace uppm
     {
         public List<string> Packages { get; } = new List<string>();
 
-        public TargetApplication Application { get; set; }
+        public TargetApp Application { get; set; }
 
         public string ApplicationMode { get; set; } =
             "vvvv";

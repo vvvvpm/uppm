@@ -6,8 +6,10 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using md.stdl.Coding;
 using Microsoft.Win32;
 using Serilog;
+using uppm.Core.Repositories;
 
 namespace uppm.Core
 {
@@ -22,12 +24,43 @@ namespace uppm.Core
         x64 = 0x8664
     }
 
+    // TODO: refactor so packages tell their target applications
     /// <summary>
-    /// Uppm can target any associated application it manages packages for.
+    /// Packages can target any associated application it manages packages for.
     /// This class contains information about such a target application
     /// </summary>
-    public abstract class TargetApplication : ILogSource
+    public abstract class TargetApp : ILogSource
     {
+        private static readonly Dictionary<string, TargetApp> _knownTargetApps = new Dictionary<string, TargetApp>();
+        
+        /// <summary>
+        /// The globally inferred target application, unless a package specifies a different one
+        /// </summary>
+        public static TargetApp CurrentTargetApp { get; private set; }
+
+        /// <summary>
+        /// Tries to get a known target application
+        /// </summary>
+        /// <param name="sname"></param>
+        /// <param name="app"></param>
+        /// <returns></returns>
+        public static bool TryGetKnownApp(string sname, out TargetApp app) => _knownTargetApps.TryGetValue(sname, out app);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sname"></param>
+        /// <param name="app"></param>
+        /// <returns></returns>
+        public static bool TrySetCurrentApp(string sname, out TargetApp app)
+        {
+            if (!TryGetKnownApp(sname, out app)) return false;
+            CurrentTargetApp?.DefaultRepository?.UnregisterDefaultRepository();
+            CurrentTargetApp = app;
+            app.DefaultRepository.RegisterDefaultRepository();
+            return true;
+        }
+
         protected string PAppFolder;
         protected string PGlobalPacksFolder;
         protected string PLocalPacksFolder;
@@ -70,10 +103,22 @@ namespace uppm.Core
         public virtual string Executable { get; set; }
 
         /// <summary>
+        /// The default package repository for this application
+        /// </summary>
+        public virtual IPackageRepository DefaultRepository { get; }
+
+        /// <summary>
         /// Full path to executable
         /// </summary>
         public string AbsoluteExe => Path.GetFullPath(Path.Combine(AppFolder, Executable));
 
+        /// <summary>
+        /// If input is empty then return current directory, else return the absolute
+        /// path to the potentially relative directory. If given directory doesn't exist
+        /// create it.
+        /// </summary>
+        /// <param name="dir"></param>
+        /// <returns>Absolute path</returns>
         protected string CurrentOrNewFolder(string dir)
         {
             if (string.IsNullOrWhiteSpace(dir)) return Environment.CurrentDirectory;
@@ -84,6 +129,17 @@ namespace uppm.Core
                 Directory.CreateDirectory(adir);
                 return adir;
             }
+        }
+
+        /// <summary>
+        /// Registers this target application as a known one so packages can use it.
+        /// </summary>
+        /// <returns></returns>
+        public TargetApp RegisterAsKnownApp()
+        {
+            DefaultRepository.RegisterRepository();
+            _knownTargetApps.UpdateGeneric(ShortName, this);
+            return this;
         }
 
         /// <summary>
@@ -115,7 +171,7 @@ namespace uppm.Core
             return new UppmVersion(vinfo.FileMajorPart, vinfo.FileMinorPart, vinfo.FileBuildPart);
         }
 
-        public TargetApplication()
+        public TargetApp()
         {
             Log = this.GetContext();
         }
@@ -133,7 +189,7 @@ namespace uppm.Core
     /// <summary>
     /// In case the current package manager is the target application
     /// </summary>
-    public class CurrentUppmApplication : TargetApplication
+    public class CurrentUppmApp : TargetApp
     {
         /// <inheritdoc />
         public override string AppFolder
@@ -156,7 +212,7 @@ namespace uppm.Core
     /// <summary>
     /// Target application is vvvv
     /// </summary>
-    public class VvvvApplication : TargetApplication
+    public class VvvvApp : TargetApp
     {
         /// <inheritdoc />
         public override string ShortName { get => "vvvv"; set { } }
