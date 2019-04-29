@@ -2,80 +2,22 @@
 using System.IO;
 using System.Linq;
 using System.Management.Automation;
+using LibGit2Sharp;
 using md.stdl.Windows;
 using Serilog;
+using uppm.Core.Utils;
 
 namespace uppm.Core.Scripting
 {
     /// <summary>
     /// A host or global object for scripts. Members can be referenced implicitly in scripts without the need for `ScriptHost.*`
     /// </summary>
-    public class ScriptHost : ILogSource
+    public class ScriptHost : ILogging
     {
-        /// <summary>
-        /// Delegate for events fired by a script
-        /// </summary>
-        /// <param name="host"></param>
-        public delegate void ScriptEventHandler(ScriptHost host);
-
-        /// <summary>
-        /// Delegate for events regarding a file or folder fired by a script
-        /// </summary>
-        /// <param name="path">The file/folder path</param>
-        /// <param name="host"></param>
-        public delegate void FileEventHandler(ScriptHost host, string path);
-
-        /// <summary>
-        /// Delegate for events regarding a file or folder source-destination pair fired by a script
-        /// </summary>
-        /// <param name="host"></param>
-        /// <param name="srcpath">Source file/folder</param>
-        /// <param name="dstpath">Destination file/folder</param>
-        public delegate void FileDestinationEventHandler(ScriptHost host, string srcpath, string dstpath);
-
-        /// <summary>
-        /// Delegate for <see cref="OnCopyProgress"/>
-        /// </summary>
-        /// <param name="host"></param>
-        /// <param name="fsentry">Currently processed <see cref="FileInfo"/> or <see cref="DirectoryInfo"/></param>
-        /// <param name="srcdir">source directory</param>
-        /// <param name="dstdir">destination directory</param>
-        public delegate void CopyProgressHandler(ScriptHost host, FileSystemInfo fsentry, string srcdir, string dstdir);
-
-        /// <summary>
-        /// Event when a copying operation started
-        /// </summary>
-        public static event FileDestinationEventHandler OnCopyStarted;
-
-        /// <summary>
-        /// Event when a copying operation ended
-        /// </summary>
-        public static event FileDestinationEventHandler OnCopyEnded;
-
-        /// <summary>
-        /// Event occuring during a copy operation progress
-        /// </summary>
-        public static event CopyProgressHandler OnCopyProgress;
-
-        /// <summary>
-        /// Event when a deketing operation started
-        /// </summary>
-        public static event FileEventHandler OnDeleteStarted;
-
-        /// <summary>
-        /// Event when a deleting operation ended
-        /// </summary>
-        public static event FileEventHandler OnDeleteEnded;
-
-        /// <summary>
-        /// Event occuring during a delete operation progress
-        /// </summary>
-        public static event FileEventHandler OnDeleteProgress;
-
         /// <summary>
         /// Information about the target application of the package manager
         /// </summary>
-        public TargetApp Application { get; set; }
+        public TargetApp App { get; set; }
 
         /// <summary>
         /// Information about the package manager
@@ -135,14 +77,21 @@ namespace uppm.Core.Scripting
         /// <param name="match">Matching whitelist, can use wildcards</param>
         public void CopyDirectory(string srcdir, string dstdir, string[] ignore = null, string[] match = null)
         {
-            OnCopyStarted?.Invoke(this, srcdir, dstdir);
+            FileUtils.CopyDirectory(srcdir, dstdir, ignore, match, this);
+        }
 
-            FileSystem.CopyDirectory(srcdir, dstdir, ignore, match, fsentry =>
-            {
-                OnCopyProgress?.Invoke(this, fsentry, srcdir, dstdir);
-            });
+        /// <summary>
+        /// Clones a git repository. Only HTTP remote supported
+        /// </summary>
+        /// <param name="remote"></param>
+        /// <param name="dstdir"></param>
+        /// <param name="options"></param>
+        public void GitClone(string remote, string dstdir, string branch = null, CloneOptions options = null)
+        {
+            options = options ?? new CloneOptions();
+            options.BranchName = branch ?? options.BranchName;
 
-            OnCopyEnded?.Invoke(this, srcdir, dstdir);
+            GitUtils.Clone(remote, dstdir, options, this);
         }
 
         /// <summary>
@@ -154,43 +103,8 @@ namespace uppm.Core.Scripting
         /// <param name="match">Matching whitelist, can use wildcards</param>
         public void DeleteDirectory(string srcdir, bool recursive = true, string[] ignore = null, string[] match = null)
         {
-            OnDeleteStarted?.Invoke(this, srcdir);
-            DeleteDirectoryRec(srcdir, recursive, ignore, match);
-            OnDeleteEnded?.Invoke(this, srcdir);
+            FileUtils.DeleteDirectory(srcdir, recursive, ignore, match, this);
         }
-
-        private void DeleteDirectoryRec(string srcdir, bool recursive = true, string[] ignore = null, string[] match = null)
-        {
-            if (recursive)
-            {
-                var subfolders = Directory.GetDirectories(srcdir);
-                foreach (var s in subfolders)
-                {
-                    var name = Path.GetFileName(s);
-                    if (ignore != null && ignore.Any(path => new WildcardPattern(path).IsMatch(name))) continue;
-                    if (match != null && !match.Any(path => new WildcardPattern(path).IsMatch(name))) continue;
-
-                    OnDeleteProgress?.Invoke(this, s);
-                    DeleteDirectoryRec(s, true, ignore, match);
-                }
-            }
-
-            var files = Directory.GetFiles(srcdir);
-            foreach (var f in files)
-            {
-                var name = Path.GetFileName(f);
-                if (ignore != null && ignore.Any(path => new WildcardPattern(path).IsMatch(name))) continue;
-                if (match != null && !match.Any(path => new WildcardPattern(path).IsMatch(name))) continue;
-
-                OnDeleteProgress?.Invoke(this, f);
-                var attr = File.GetAttributes(f);
-                if ((attr & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
-                {
-                    File.SetAttributes(f, attr ^ FileAttributes.ReadOnly);
-                }
-                File.Delete(f);
-            }
-            Directory.Delete(srcdir);
-        }
+    
     }
 }
