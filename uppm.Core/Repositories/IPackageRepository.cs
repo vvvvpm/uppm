@@ -6,7 +6,7 @@ namespace uppm.Core.Repositories
     /// <summary>
     /// Represents a repository of packages
     /// </summary>
-    public interface IPackageRepository : ILogSource
+    public interface IPackageRepository : ILogging
     {
         /// <summary>
         /// Repository is loaded successfully and ready to be used.

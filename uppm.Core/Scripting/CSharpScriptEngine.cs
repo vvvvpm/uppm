@@ -45,7 +45,7 @@ namespace uppm.Core.Scripting
         /// </summary>
         /// <param name="source">A logging object</param>
         /// <returns></returns>
-        public static LogFactory CreateScriptLogger(ILogSource source) => type => (level, message, exception) =>
+        public static LogFactory CreateScriptLogger(ILogging source) => type => (level, message, exception) =>
         {
             switch (level)
             {

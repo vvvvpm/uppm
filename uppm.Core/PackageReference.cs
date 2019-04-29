@@ -60,7 +60,7 @@ namespace uppm.Core
                 }
                 else
                 {
-                    UppmLog.L.Error(
+                    Logging.L.Error(
                         "Cannot parse {Url} as package reference because it has invalid format",
                         refstring
                     );

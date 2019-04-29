@@ -26,7 +26,7 @@ namespace uppm.Core
     /// circular dependencies and version conflicts but sacrifices
     /// nice graph-visualizations (so far ;) )
     /// </remarks>
-    public class Package : ILogSource
+    public class Package : ILogging
     {
         private Package _root;
 

@@ -102,7 +102,7 @@ namespace uppm.Core.Repositories
             }
             else
             {
-                UppmLog.L.Verbose("Repository of {$PackRef} is not specified, looking for it in default repositories", reference);
+                Logging.L.Verbose("Repository of {$PackRef} is not specified, looking for it in default repositories", reference);
                 foreach (var defrepo in DefaultRepositories.Values)
                 {
                     if (defrepo.TryGetPackageText(reference, out _))
@@ -127,7 +127,7 @@ namespace uppm.Core.Repositories
             if (reference == null) return false;
             if (!reference.TryGetRepository(out var repo))
             {
-                UppmLog.L.Error("Couldn't get repository for {$PackRef}", reference);
+                Logging.L.Error("Couldn't get repository for {$PackRef}", reference);
                 return false;
             }
 

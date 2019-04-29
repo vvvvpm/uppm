@@ -29,7 +29,7 @@ namespace uppm.Core
     /// Packages can target any associated application it manages packages for.
     /// This class contains information about such a target application
     /// </summary>
-    public abstract class TargetApp : ILogSource
+    public abstract class TargetApp : ILogging
     {
         private static readonly Dictionary<string, TargetApp> _knownTargetApps = new Dictionary<string, TargetApp>();
         
@@ -47,7 +47,7 @@ namespace uppm.Core
         public static bool TryGetKnownApp(string sname, out TargetApp app) => _knownTargetApps.TryGetValue(sname, out app);
 
         /// <summary>
-        /// 
+        /// Tries to set the current target application to the specified one.
         /// </summary>
         /// <param name="sname"></param>
         /// <param name="app"></param>

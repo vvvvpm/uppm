@@ -13,13 +13,13 @@ namespace uppm.Core
     /// <summary>
     /// Inheriting class can easily provide its own context while logging
     /// </summary>
-    public interface ILogSource
+    public interface ILogging
     {
         /// <summary>
         /// The logger providing the context to the inheriting class
         /// </summary>
         /// <remarks>
-        /// It is recommended to assign this autoproperty <see cref="UppmLog.GetContext"/> in the constructor.
+        /// It is recommended to assign this autoproperty <see cref="Logging.GetContext"/> in the constructor.
         /// </remarks>
         ILogger Log { get; }
 
@@ -31,7 +31,7 @@ namespace uppm.Core
 
         /// <summary>
         /// Invoke any progress change. This is only meant to be used internally by uppm
-        /// via the extension method <see cref="UppmLog.InvokeAnyProgress"/>
+        /// via the extension method <see cref="Logging.InvokeAnyProgress"/>
         /// </summary>
         /// <param name="progress"></param>
         void InvokeProgress(ProgressEventArgs progress);
@@ -87,12 +87,12 @@ namespace uppm.Core
         }
     }
 
-    public delegate void UppmProgressHandler(ILogSource sender, ProgressEventArgs args);
+    public delegate void UppmProgressHandler(ILogging sender, ProgressEventArgs args);
 
     /// <summary>
     /// Utilities for logging
     /// </summary>
-    public static class UppmLog
+    public static class Logging
     {
         /// <summary>
         /// Uppm implementation have to at least initialize a default Serilog logger
@@ -117,11 +117,11 @@ namespace uppm.Core
         public static Logger L { get; private set; }
 
         /// <summary>
-        /// Shortcut to getting a consistent "UppmSource" property when <see cref="ILogSource"/> objects log.
+        /// Shortcut to getting a consistent "UppmSource" property when <see cref="ILogging"/> objects log.
         /// </summary>
         /// <param name="source"></param>
         /// <returns></returns>
-        public static ILogger GetContext(this ILogSource source)
+        public static ILogger GetContext(this ILogging source)
         {
             return L.ForContext("UppmSource", source);
         }
@@ -134,10 +134,10 @@ namespace uppm.Core
         /// <param name="currentValue"></param>
         /// <param name="state"></param>
         /// <param name="message"></param>
-        public static void InvokeAnyProgress(this ILogSource source, double totalValue = 0, double currentValue = 0, string state = "", string message = "")
+        public static void InvokeAnyProgress(this ILogging source, double totalValue = 0, double currentValue = 0, string state = "", string message = "")
         {
             var prog = new ProgressEventArgs(totalValue, currentValue, state, message);
-            source.InvokeProgress(prog);
+            source?.InvokeProgress(prog);
             OnAnyProgress?.Invoke(source, prog);
         }
 

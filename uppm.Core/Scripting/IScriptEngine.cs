@@ -19,7 +19,7 @@ namespace uppm.Core.Scripting
     /// different actions and ways to extract the package metadata and the actual
     /// executable script text from a raw package text.
     /// </summary>
-    public interface IScriptEngine : ILogSource
+    public interface IScriptEngine : ILogging
     {
         /// <summary>
         /// File extension to be associated with this script engine, without starting dot.

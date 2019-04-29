@@ -10,7 +10,7 @@ namespace uppm.Core.Utils
 {
     static public class GitUtils
     {
-        private static void LogVerboseRepoOperationEvent(ILogSource caller, RepositoryOperationContext context)
+        private static void LogVerboseRepoOperationEvent(ILogging caller, RepositoryOperationContext context)
         {
             if (caller == null) return;
             caller.Log.Debug("    submodule: {SubmoduleName}", context.SubmoduleName);
@@ -19,7 +19,7 @@ namespace uppm.Core.Utils
             caller.Log.Verbose("    remote: {RepoRemoteName}", context.RemoteUrl);
         }
 
-        private static RepositoryOperationStarting RepoOperationStart(ILogSource caller, string action) => context =>
+        private static RepositoryOperationStarting RepoOperationStart(ILogging caller, string action) => context =>
         {
             if (caller == null) return;
             caller.Log.Information(
@@ -30,7 +30,7 @@ namespace uppm.Core.Utils
             return true;
         };
 
-        private static RepositoryOperationCompleted RepoOperationEnd(ILogSource caller, string action) => context =>
+        private static RepositoryOperationCompleted RepoOperationEnd(ILogging caller, string action) => context =>
         {
             if (caller == null) return;
             caller.Log.Information(
@@ -49,11 +49,11 @@ namespace uppm.Core.Utils
         /// <param name="caller">Required for log and progress origin</param>
         /// <returns></returns>
         /// <remarks>
-        /// OnCheckoutProgress and OnTransferProgress will be overriden to invoke <see cref="UppmLog.OnAnyProgress"/>.
+        /// OnCheckoutProgress and OnTransferProgress will be overriden to invoke <see cref="Logging.OnAnyProgress"/>.
         /// OnProgress, RepositoryOperationStarting and RepositoryOperationCompleted will be overriden to log
         /// in the uppm Serilog system.
         /// </remarks>
-        public static Repository Clone(string remote, string dst, CloneOptions options = null, ILogSource caller = null)
+        public static Repository Clone(string remote, string dst, CloneOptions options = null, ILogging caller = null)
         {
             options = options ?? new CloneOptions();
 
@@ -95,11 +95,11 @@ namespace uppm.Core.Utils
         /// <param name="checkoutops"></param>
         /// <returns></returns>
         /// <remarks>
-        /// OnCheckoutProgress and OnTransferProgress will be overriden to invoke <see cref="UppmLog.OnAnyProgress"/>.
+        /// OnCheckoutProgress and OnTransferProgress will be overriden to invoke <see cref="Logging.OnAnyProgress"/>.
         /// OnProgress, RepositoryOperationStarting and RepositoryOperationCompleted will be overriden to log
         /// in the uppm Serilog system.
         /// </remarks>
-        public static Repository Synchronize(string repofolder, FetchOptions fetchops = null, CheckoutOptions checkoutops = null, ILogSource caller = null)
+        public static Repository Synchronize(string repofolder, FetchOptions fetchops = null, CheckoutOptions checkoutops = null, ILogging caller = null)
         {
 
             try

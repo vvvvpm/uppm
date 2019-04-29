@@ -47,7 +47,10 @@ namespace uppm.Core.Scripting
                 return;
             }
 
-            var shell = PowerShell.Create().AddScript(pack.Meta.ScriptText);
+            var shell = PowerShell.Create()
+                .AddParameter("UppmPack", pack)
+                .AddParameter("Uppm")
+                .AddScript(pack.Meta.ScriptText);
             shell.Streams.Verbose.DataAdded += (sender, args) => Log.Verbose("{PsOutput}", args.ToString());
             shell.Streams.Debug.DataAdded += (sender, args) => Log.Debug("{PsOutput}", args.ToString());
             shell.Streams.Progress.DataAdded += (sender, args) => this.InvokeAnyProgress(message: args.ToString());

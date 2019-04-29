@@ -78,14 +78,14 @@ namespace uppm.Core
                 var prevworkdir = _workingDirectory;
                 if(!Directory.Exists(value))
                 {
-                    UppmLog.L.Warning("Trying to override the working directory with one which doesn't exist. Creating it.");
+                    Logging.L.Warning("Trying to override the working directory with one which doesn't exist. Creating it.");
                     try
                     {
                         Directory.CreateDirectory(value);
                     }
                     catch (Exception e)
                     {
-                        UppmLog.L.Error("Overriding working directory failed, previously set or default is used.");
+                        Logging.L.Error("Overriding working directory failed, previously set or default is used.");
                         return;
                     }
                 }
