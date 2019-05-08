@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Management.Automation;
+using System.Net;
 using LibGit2Sharp;
 using md.stdl.Windows;
 using Serilog;
@@ -63,10 +64,8 @@ namespace uppm.Core.Scripting
         /// Gracefully throw exception and tell about it in the package manager
         /// </summary>
         /// <param name="e"></param>
-        public void ThrowException(Exception e)
-        {
+        public void ThrowException(Exception e) =>
             Log.Error(e, "Script of {$PackRef} threw an exception", Pack.Meta.Self);
-        }
 
         /// <summary>
         /// Copy a directory recursively with either black~ or white listing.
@@ -75,10 +74,8 @@ namespace uppm.Core.Scripting
         /// <param name="dstdir">Destination directory</param>
         /// <param name="ignore">Ignoring blacklist, can use wildcards</param>
         /// <param name="match">Matching whitelist, can use wildcards</param>
-        public void CopyDirectory(string srcdir, string dstdir, string[] ignore = null, string[] match = null)
-        {
+        public void CopyDirectory(string srcdir, string dstdir, string[] ignore = null, string[] match = null) =>
             FileUtils.CopyDirectory(srcdir, dstdir, ignore, match, this);
-        }
 
         /// <summary>
         /// Clones a git repository. Only HTTP remote supported
@@ -101,10 +98,37 @@ namespace uppm.Core.Scripting
         /// <param name="recursive"></param>
         /// <param name="ignore">Ignoring blacklist, can use wildcards</param>
         /// <param name="match">Matching whitelist, can use wildcards</param>
-        public void DeleteDirectory(string srcdir, bool recursive = true, string[] ignore = null, string[] match = null)
-        {
+        public void DeleteDirectory(string srcdir, bool recursive = true, string[] ignore = null, string[] match = null) =>
             FileUtils.DeleteDirectory(srcdir, recursive, ignore, match, this);
+
+        /// <summary>
+        /// Download a file synchronously with progress events fired on behalf of this ScriptHost
+        /// </summary>
+        /// <param name="url"></param>
+        /// <param name="dst"></param>
+        public void Download(string url, string dst)
+        {
+            var client = new WebClient();
+            client.DownloadProgressChanged += (sender, args) =>
+                this.InvokeAnyProgress(args.TotalBytesToReceive, args.BytesReceived, url, "Downloading");
+            
+            var dltask = client.DownloadFileTaskAsync(url, dst);
+            try
+            {
+                dltask.Wait();
+            }
+            catch (Exception e)
+            {
+                Log.Error(e, "Downloading failed for {Url}", url);
+            }
         }
-    
+
+        /// <summary>
+        /// Extract an archive which is supported by the SharpCompress library (i.e.: zip, 7z, rar, tar.bz2, etc...)
+        /// </summary>
+        /// <param name="src"></param>
+        /// <param name="dstdir"></param>
+        public void Extract(string src, string dstdir) =>
+            FileUtils.ExtractArchive(src, dstdir, this);
     }
 }

@@ -12,17 +12,17 @@ namespace uppm.Core.Utils
     {
         private static void LogVerboseRepoOperationEvent(ILogging caller, RepositoryOperationContext context)
         {
-            if (caller == null) return;
-            caller.Log.Debug("    submodule: {SubmoduleName}", context.SubmoduleName);
-            caller.Log.Debug("    recursion depth: {RepoRecDepth}", context.RecursionDepth);
-            caller.Log.Verbose("    parent: {ParentRepoName}", context.ParentRepositoryPath);
-            caller.Log.Verbose("    remote: {RepoRemoteName}", context.RemoteUrl);
+            var logger = caller?.Log ?? Logging.L;
+            logger.Debug("    submodule: {SubmoduleName}", context.SubmoduleName);
+            logger.Debug("    recursion depth: {RepoRecDepth}", context.RecursionDepth);
+            logger.Verbose("    parent: {ParentRepoName}", context.ParentRepositoryPath);
+            logger.Verbose("    remote: {RepoRemoteName}", context.RemoteUrl);
         }
 
         private static RepositoryOperationStarting RepoOperationStart(ILogging caller, string action) => context =>
         {
-            if (caller == null) return;
-            caller.Log.Information(
+            var logger = caller?.Log ?? Logging.L;
+            logger.Information(
                 "Repository {RepoAction} started on {RepoName}",
                 action, 
                 context.RepositoryPath);
@@ -32,8 +32,8 @@ namespace uppm.Core.Utils
 
         private static RepositoryOperationCompleted RepoOperationEnd(ILogging caller, string action) => context =>
         {
-            if (caller == null) return;
-            caller.Log.Information(
+            var logger = caller?.Log ?? Logging.L;
+            logger.Information(
                 "Repository {RepoAction} completed on {RepoName}",
                 action,
                 context.RepositoryPath);
@@ -56,6 +56,7 @@ namespace uppm.Core.Utils
         public static Repository Clone(string remote, string dst, CloneOptions options = null, ILogging caller = null)
         {
             options = options ?? new CloneOptions();
+            var logger = caller?.Log ?? Logging.L;
 
             options.OnCheckoutProgress = (path, steps, totalSteps) =>
             {
@@ -68,7 +69,7 @@ namespace uppm.Core.Utils
             };
             options.OnProgress = output =>
             {
-                caller?.Log.Debug(output);
+                logger.Debug(output);
                 return true;
             };
             options.RepositoryOperationStarting = RepoOperationStart(caller, "Cloning");
@@ -81,7 +82,7 @@ namespace uppm.Core.Utils
             }
             catch (Exception e)
             {
-                caller?.Log.Fatal(e, "Error during cloning repository {RepoRemoteName}", remote);
+                logger.Fatal(e, "Error during cloning repository {RepoRemoteName}", remote);
             }
             return null;
         }
@@ -101,7 +102,7 @@ namespace uppm.Core.Utils
         /// </remarks>
         public static Repository Synchronize(string repofolder, FetchOptions fetchops = null, CheckoutOptions checkoutops = null, ILogging caller = null)
         {
-
+            var logger = caller?.Log ?? Logging.L;
             try
             {
                 var repo = new Repository(repofolder);
@@ -117,7 +118,7 @@ namespace uppm.Core.Utils
                 };
                 fetchops.OnProgress = output =>
                 {
-                    caller?.Log.Debug(output);
+                    logger.Debug(output);
                     return true;
                 };
                 checkoutops.OnCheckoutProgress = (path, steps, totalSteps) =>
@@ -133,7 +134,7 @@ namespace uppm.Core.Utils
             }
             catch (Exception e)
             {
-                caller?.Log.Error(e, "Error opening or checking out locally available repository. ({RepoUrl})", repofolder);
+                logger.Error(e, "Error opening or checking out locally available repository. ({RepoUrl})", repofolder);
                 return null;
             }
         }

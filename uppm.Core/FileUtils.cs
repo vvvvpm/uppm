@@ -6,6 +6,9 @@ using System.Management.Automation;
 using System.Text;
 using System.Threading.Tasks;
 using md.stdl.Windows;
+using SharpCompress.Archives;
+using SharpCompress.Common;
+using SharpCompress.Readers;
 
 namespace uppm.Core
 {
@@ -29,8 +32,8 @@ namespace uppm.Core
             string[] ignore = null, string[] match = null,
             ILogging caller = null)
         {
-
-            caller?.Log?.Information(
+            var logger = caller?.Log ?? Logging.L;
+            logger.Information(
                 "Copy started from {Src} to {Dst}",
                 srcdir,
                 dstdir
@@ -44,7 +47,7 @@ namespace uppm.Core
                 );
             });
 
-            caller?.Log?.Debug(
+            logger.Debug(
                 "Copy ended from {Src} to {Dst}",
                 srcdir,
                 dstdir
@@ -64,14 +67,15 @@ namespace uppm.Core
             string[] ignore = null, string[] match = null,
             ILogging caller = null)
         {
-            caller?.Log?.Information(
+            var logger = caller?.Log ?? Logging.L;
+            logger.Information(
                 "Started deleting directory {Src}",
                 srcdir
             );
 
             DeleteDirectoryRec(srcdir, recursive, ignore, match);
 
-            caller?.Log?.Debug(
+            logger.Debug(
                 "Deleted {Src}",
                 srcdir
             );
@@ -83,6 +87,7 @@ namespace uppm.Core
             string[] ignore = null, string[] match = null,
             ILogging caller = null)
         {
+            var logger = caller?.Log ?? Logging.L;
             if (recursive)
             {
                 var subfolders = Directory.GetDirectories(srcdir);
@@ -124,7 +129,7 @@ namespace uppm.Core
                 }
                 catch (Exception e)
                 {
-                    caller?.Log?.Error(
+                    logger.Error(
                         e,
                         "Error during deleting {Src}",
                         f
@@ -138,7 +143,7 @@ namespace uppm.Core
             }
             catch (Exception e)
             {
-                caller?.Log?.Error(
+                logger.Error(
                     e,
                     "Error during deleting {Src}",
                     srcdir
@@ -146,5 +151,41 @@ namespace uppm.Core
             }
         }
 
+        /// <summary>
+        /// Extract an archive which is supported by the SharpCompress library (i.e.: zip, 7z, rar, tar.bz2, etc...)
+        /// </summary>
+        /// <param name="src"></param>
+        /// <param name="dstdir"></param>
+        /// <param name="caller"></param>
+        public static void ExtractArchive(string src, string dstdir, ILogging caller = null)
+        {
+            var logger = caller?.Log ?? Logging.L;
+            try
+            {
+                var archive = ArchiveFactory.Open(src, new ReaderOptions
+                {
+                    LookForHeader = true
+                });
+
+                var entries = archive.Entries.Where(entry => !entry.IsDirectory).ToList();
+                var ii = 0;
+
+                foreach (var entry in entries)
+                {
+                    caller?.InvokeAnyProgress(entries.Count, ii, entry.Key, $"Extracting");
+                    entry.WriteToDirectory(dstdir, new ExtractionOptions
+                    {
+                        ExtractFullPath = true,
+                        Overwrite = true
+                    });
+                    ii++;
+                }
+                archive.Dispose();
+            }
+            catch (Exception e)
+            {
+                logger.Error(e, "Error during extracting {Archive}", src);
+            }
+        }
     }
 }
