@@ -21,6 +21,7 @@ Uppm first look for `<name>`, then `<version>` if specified as described below. 
 * Dotnet.Script
 * Fasterflect
 * Flurl
+* GitLink
 * HJSON
 * Humanizer
 * LibGit2Sharp
@@ -35,6 +36,8 @@ Uppm first look for `<name>`, then `<version>` if specified as described below. 
 # Details
 
 ## uppm.Core
+
+Uppm is compatible with GitLink.
 
 The jist of uppm is available as an independent library, which means you can implement all of its functionalities seamlessly into your .NET program using only uppm.Core Nuget package. All function calls in uppm is blocking by design, but the implementer can utilize Serilog and progress events to get status of a given operation. It is expected by UI applications to dedicate uppm its own threads. Uppm also operates with couple of static properties sacrificing simultaneous contexts for ease of development.
 
