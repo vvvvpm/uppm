@@ -43,7 +43,7 @@ namespace uppm.Core
         /// <summary>
         /// The selected target application of this package
         /// </summary>
-        public TargetApp TargetApp { get; set; }
+        public TargetApp TargetApplication { get; set; }
 
         /// <summary>
         /// Branch depth in the dependency tree counted from root == 0
@@ -80,16 +80,39 @@ namespace uppm.Core
         /// </summary>
         /// <param name="action"></param>
         /// <param name="recursive"></param>
-        public void RunAction(string action, bool recursive = true)
+        /// <returns>True if action ran without errors</returns>
+        public bool RunAction(string action, bool recursive = true)
         {
+            var prevtarget = TargetApp.CurrentTargetApp;
+            if (!TargetApp.TrySetCurrentApp(Meta.TargetApp, out var currtarget))
+            {
+                Log.Error("Package targets an unknown application. `{Action}` Action won't run.", action);
+                return false;
+            }
+            TargetApplication = currtarget;
+
+            bool result = true;
+
             if (DependencyTreeDepth == 0 && recursive)
             {
                 foreach (var dependency in FlatDependencies.Values)
                 {
-                    dependency.RunAction(action);
+                    result = result && dependency.RunAction(action);
+                    if (!result)
+                    {
+                        Log.Error(
+                            "Dependency {$DepPackRef} of {$CurrPackRef} couldn't execute `{Action}`",
+                            dependency.Meta.Self,
+                            Meta.Self,
+                            action
+                        );
+                    }
                 }
             }
-            Engine.RunAction(this, action);
+
+            result = result && Engine.RunAction(this, action);
+            prevtarget.SetAsCurrentApp();
+            return result;
         }
 
         /// <summary>

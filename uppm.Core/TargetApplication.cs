@@ -61,6 +61,7 @@ namespace uppm.Core
             return true;
         }
 
+
         protected string PAppFolder;
         protected string PGlobalPacksFolder;
         protected string PLocalPacksFolder;
@@ -139,6 +140,15 @@ namespace uppm.Core
         {
             DefaultRepository.RegisterRepository();
             _knownTargetApps.UpdateGeneric(ShortName, this);
+            return this;
+        }
+
+        public TargetApp SetAsCurrentApp()
+        {
+            CurrentTargetApp?.DefaultRepository?.UnregisterDefaultRepository();
+            DefaultRepository.RegisterRepository();
+            _knownTargetApps.UpdateGeneric(ShortName, this);
+            CurrentTargetApp = this;
             return this;
         }
 

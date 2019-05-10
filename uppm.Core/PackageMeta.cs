@@ -19,10 +19,11 @@ namespace uppm.Core
         /// </summary>
         /// <param name="hjson"></param>
         /// <param name="packmeta"></param>
-        public static void ParseFromHjson(string hjson, ref PackageMeta packmeta)
+        /// <param name="parentRepo">Optionally a parent repository can be specified. This is used mostly for keeping dependency contexts correct.</param>
+        public static void ParseFromHjson(string hjson, ref PackageMeta packmeta, string parentRepo = "")
         {
             packmeta = packmeta ?? new PackageMeta();
-            ParseFromJson(HjsonValue.Parse(hjson).ToString(), ref packmeta);
+            ParseFromJson(HjsonValue.Parse(hjson).ToString(), ref packmeta, parentRepo);
         }
 
         /// <summary>
@@ -30,7 +31,8 @@ namespace uppm.Core
         /// </summary>
         /// <param name="hjson"></param>
         /// <param name="packmeta"></param>
-        public static void ParseFromJson(string json, ref PackageMeta packmeta)
+        /// <param name="parentRepo">Optionally a parent repository can be specified. This is used mostly for keeping dependency contexts correct.</param>
+        public static void ParseFromJson(string json, ref PackageMeta packmeta, string parentRepo = "")
         {
             var jobj = packmeta.MetaData = JObject.Parse(json);
 
@@ -51,7 +53,14 @@ namespace uppm.Core
             {
                 foreach (var jdep in jdeps)
                 {
-                    packmeta.Dependencies.Update(PackageReference.Parse(jdep.ToString()));
+                    var packref = PackageReference.Parse(jdep.ToString());
+
+                    if (!string.IsNullOrWhiteSpace(parentRepo) && 
+                        !string.IsNullOrWhiteSpace(packref.RepositoryUrl)
+                    )
+                        packref.RepositoryUrl = parentRepo;
+
+                    packmeta.Dependencies.Update(packref);
                 }
             }
         }

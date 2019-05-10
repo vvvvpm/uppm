@@ -38,7 +38,7 @@ namespace uppm.Core.Scripting
         /// <param name="text">Raw contents of the package</param>
         /// <param name="packmeta">If found then the output metadata, or else null</param>
         /// <param name="requiredVersion">Information about the uppm version requirements of this pack</param>
-        /// <param name="packref">Optional package reference for the desired pack to get the meta for</param>
+        /// <param name="packref">Package reference for the desired pack to get the meta for</param>
         /// <returns>True if metadata is found</returns>
         bool TryGetMeta(string text, ref PackageMeta packmeta, out VersionRequirement requiredVersion, CompletePackageReference packref);
 
@@ -51,16 +51,18 @@ namespace uppm.Core.Scripting
         /// </remarks>
         /// <param name="text">Raw contents of the package</param>
         /// <param name="scripttext">Resulting executable script text</param>
-        /// <param name="imports">Optional HashSet of imports found in this script</param>
-        /// <returns>The executable script text if found, or else null or empty string.</returns>
-        bool TryGetScriptText(string text, out string scripttext, HashSet<PartialPackageReference> imports);
+        /// <param name="imports">Optional <see cref="HashSet{T}"/> of imports found in this script</param>
+        /// <param name="parentRepo">Optionally a parent repository can be specified. This is used mostly for keeping dependency contexts correct.</param>
+        /// <returns>True if retrieving the script text was successful</returns>
+        bool TryGetScriptText(string text, out string scripttext, HashSet<PartialPackageReference> imports = null, string parentRepo = "");
 
         /// <summary>
         /// Run an action identified via a string from the script of a package
         /// </summary>
         /// <param name="pack">Input package</param>
         /// <param name="action">The specified action</param>
-        void RunAction(Package pack, string action);
+        /// <returns>True if action ran without errors</returns>
+        bool RunAction(Package pack, string action);
     }
 
     /// <summary>
@@ -169,12 +171,14 @@ namespace uppm.Core.Scripting
         /// <param name="packMeta">reference to a <see cref="PackageMeta"/>.
         /// if reference is null a new one will be created and assigned to it</param>
         /// <param name="packref">optional pack reference for logging to know which pack we're talking about.</param>
+        /// <param name="parentRepo">Optionally a parent repository can be specified. This is used mostly for keeping dependency contexts correct.</param>
         /// <returns>True if package metadata was parsed successfully</returns>
         public static bool TryGetHjsonScriptMultilineMeta(
             this IScriptEngine engine,
             string metaText,
             ref PackageMeta packMeta,
-            CompletePackageReference packref = null)
+            CompletePackageReference packref = null,
+            string parentRepo = "")
         {
             packMeta = packMeta ?? new PackageMeta();
             if (packref != null) packMeta.Self = packref;
@@ -202,6 +206,7 @@ namespace uppm.Core.Scripting
         /// if reference is null a new one will be created and assigned to it</param>
         /// <param name="requiredVersion">output version requirement if valid</param>
         /// <param name="packref">optional pack reference for logging to know which pack we're talking about.</param>
+        /// <param name="parentRepo">Optionally a parent repository can be specified. This is used mostly for keeping dependency contexts correct.</param>
         /// <returns>True if package metadata was parsed successfully</returns>
         public static bool TryGetCommonHjsonMeta(
             this IScriptEngine engine,
@@ -210,7 +215,8 @@ namespace uppm.Core.Scripting
             string commentEndRegexPattern,
             ref PackageMeta packMeta,
             out VersionRequirement requiredVersion,
-            CompletePackageReference packref = null)
+            CompletePackageReference packref = null,
+            string parentRepo = "")
         {
             if (!engine.TryGetScriptMultilineMetaComment(
                 text,
@@ -228,10 +234,11 @@ namespace uppm.Core.Scripting
             if (!engine.TryGetHjsonScriptMultilineMeta(
                 metatext,
                 ref packMeta,
-                packref))
+                packref,
+                parentRepo))
                 return false;
 
-            if (engine.TryGetScriptText(text, out var scripttext, packMeta.Imports))
+            if (engine.TryGetScriptText(text, out var scripttext, packMeta.Imports, parentRepo))
             {
                 packMeta.ScriptText = scripttext;
                 return true;
