@@ -22,12 +22,14 @@ Uppm first look for `<name>`, then `<version>` if specified as described below. 
 * Fasterflect
 * Flurl
 * HJSON
+* Humanizer
 * LibGit2Sharp
 * Json.NET
 * ReadLine
 * Serilog
 * Serilog.Encricher.WhenDo
 * Serilog.Sinks.Observable
+* SharpCompress
 * ShellProgressBar
 
 # Details
@@ -82,16 +84,16 @@ Of course references with spaces in them have to be quoted in command line.
 Uppm also has a reference URI scheme to be used from browsers which follows URI requirements and it's roughly the same as above, only differences are that the URI needs to specify the target application as well, and there are no spaces inbetween separators and other strings have to be escaped:
 
 ```
-uppm-ref:<targetApp>:<pack>:<version>@<repository>
+uppm-ref:<targetApp>/<pack>:<version>@<repository>
 ```
 
 Syntactically valid examples:
 
 ```
-uppm-ref:ue4:mypack
-uppm-ref:vvvv:my%20pack:3.1
-uppm-ref:uppm:my.pack:3.2@http://github.com/vvvvpm/uppm.db.vvvv.git
-uppm-ref:win:my.pack@D:/local/repo
+uppm-ref:ue4/mypack
+uppm-ref:vvvv/my%20pack:3.1
+uppm-ref:uppm/my.pack:3.2@http://github.com/vvvvpm/uppm.db.vvvv.git
+uppm-ref:win/my.pack@D:/local/repo
 ```
 
 ## Scripting
