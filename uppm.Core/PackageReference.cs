@@ -79,8 +79,8 @@ namespace uppm.Core
                     return new PartialPackageReference
                     {
                         Name = name,
-                        RepositoryUrl = regexmatches["repo"]?.Value,
-                        Version = regexmatches["version"]?.Value,
+                        RepositoryUrl = regexmatches["repo"]?.Value.Trim(),
+                        Version = regexmatches["version"]?.Value.Trim(),
                         TargetApp = targetapp
                     };
                 }

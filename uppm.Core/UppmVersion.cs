@@ -152,7 +152,7 @@ namespace uppm.Core
         public static bool TryParse(string input, out UppmVersion version, MissingInferenceDelegate inference = null)
         {
             version = new UppmVersion(0, inference: inference);
-            var regex = Regex.Match(input, @"^(?<major>\d+?)(\.|$)(?<minor>\d+?)?(\.|$)(?<build>\d+?)?(\.|$)(?<rev>\d+?)?$");
+            var regex = Regex.Match(input.Trim(), @"^(?<major>\d+?)(\.|$)(?<minor>\d+?)?(\.|$)(?<build>\d+?)?(\.|$)(?<rev>\d+?)?$");
             if (!regex.Success) return false;
             version.Major = int.TryParse(regex.Groups["major"].Value, out var major) ? major : 0;
             version.Minor = int.TryParse(regex.Groups["minor"].Value, out var minor) ? new int?(minor) : null;
@@ -390,5 +390,14 @@ namespace uppm.Core
         public static bool operator >=(UppmVersion a, UppmVersion b) => a.ToVersion() >= b.ToVersion();
         public static bool operator ==(UppmVersion a, UppmVersion b) => a.ToVersion() == b.ToVersion();
         public static bool operator !=(UppmVersion a, UppmVersion b) => a.ToVersion() != b.ToVersion();
+
+        public override string ToString()
+        {
+            var res = Major.ToString();
+            if (Minor != null) res += $".{Minor}";
+            if (Build != null) res += $".{Build}";
+            if (Revision != null) res += $".{Revision}";
+            return res;
+        }
     }
 }
