@@ -80,8 +80,9 @@ namespace uppm.Core
         /// </summary>
         /// <param name="action"></param>
         /// <param name="recursive"></param>
+        /// <param name="confirmLicenseWithUser">Ask user to agree to package licenses</param>
         /// <returns>True if action ran without errors</returns>
-        public bool RunAction(string action, bool recursive = true)
+        public bool RunAction(string action, bool recursive = true, bool confirmLicenseWithUser = true)
         {
             var prevtarget = TargetApp.CurrentTargetApp;
             if (!TargetApp.TrySetCurrentApp(Meta.TargetApp, out var currtarget))
@@ -95,24 +96,53 @@ namespace uppm.Core
 
             if (DependencyTreeDepth == 0 && recursive)
             {
-                foreach (var dependency in FlatDependencies.Values)
+                if (FlatDependencies.Count == 0)
+                    ConstructDependencyTree();
+
+                if (action.EqualsCaseless("install") && confirmLicenseWithUser)
                 {
-                    result = result && dependency.RunAction(action);
-                    if (!result)
+                    Log.Information("In order to use this package and its dependencies please accept these licenses:");
+                    LogLicense();
+                    foreach (var dep in FlatDependencies.Values)
                     {
-                        Log.Error(
-                            "Dependency {$DepPackRef} of {$CurrPackRef} couldn't execute `{Action}`",
-                            dependency.Meta.Self,
-                            Meta.Self,
-                            action
-                        );
+                        dep.LogLicense();
+                    }
+                    Log.Information(Meta.License);
+                    result = Logging.ConfirmWithUser("Do you agree to these terms?", source: this);
+                }
+
+                if(result)
+                {
+                    foreach (var dependency in FlatDependencies.Values)
+                    {
+                        result = result && dependency.RunAction(action, true, confirmLicenseWithUser);
+                        if (!result)
+                        {
+                            Log.Error(
+                                "Dependency {$DepPackRef} of {$CurrPackRef} couldn't execute `{Action}`",
+                                dependency.Meta.Self,
+                                Meta.Self,
+                                action
+                            );
+                        }
                     }
                 }
+            }
+
+            if (result)
+            {
+                Log.Information("Executing `{Action}` of {$PackRef}");
             }
 
             result = result && Engine.RunAction(this, action);
             prevtarget.SetAsCurrentApp();
             return result;
+        }
+
+        public void LogLicense()
+        {
+            Log.Information("License of {$PackRef}:", Meta.Self);
+            Log.Information(Meta.License);
         }
 
         /// <summary>
@@ -135,7 +165,10 @@ namespace uppm.Core
         /// </remarks>
         public void ConstructDependencyTree()
         {
-            Root.FlatDependencies.Clear();
+            if (DependencyTreeDepth == 0)
+            {
+                FlatDependencies.Clear();
+            }
 
             foreach (var depref in Meta.Dependencies)
             {
@@ -171,6 +204,25 @@ namespace uppm.Core
             dependency.Root = Root;
             dependency.DependencyTreeDepth = DependencyTreeDepth + 1;
             dependency.ConstructDependencyTree();
+        }
+
+        /// <summary>
+        /// Prints a treeview representation of the dependency tree
+        /// </summary>
+        /// <returns></returns>
+        public string PrintDependencyTree()
+        {
+            if (FlatDependencies.Count == 0)
+                ConstructDependencyTree();
+
+            var res = Meta.Self.ToString();
+            foreach (var dep in FlatDependencies.Values)
+            {
+                res += Environment.NewLine;
+                res += new string('X', dep.DependencyTreeDepth).Replace("X", "  ");
+                res += dep.Meta.Self.ToString();
+            }
+            return res;
         }
 
         /// <summary>

@@ -34,6 +34,7 @@ namespace uppm.Core
         /// <param name="parentRepo">Optionally a parent repository can be specified. This is used mostly for keeping dependency contexts correct.</param>
         public static void ParseFromJson(string json, ref PackageMeta packmeta, string parentRepo = "")
         {
+            packmeta = packmeta ?? new PackageMeta();
             var jobj = packmeta.MetaData = JObject.Parse(json);
 
             packmeta.Name = jobj["name"].ToString();
