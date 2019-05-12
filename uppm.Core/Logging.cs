@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Humanizer;
+using md.stdl.String;
 using Serilog;
 using Serilog.Core;
 using Serilog.Enricher;
@@ -87,7 +89,43 @@ namespace uppm.Core
         }
     }
 
+    /// <summary>
+    /// Event arguments for user input queries
+    /// </summary>
+    public class AskUserEventArgs
+    {
+        /// <summary></summary>
+        public string Question { get; internal set; }
+
+        /// <summary>
+        /// Desired default value used in a potential unattended mode
+        /// </summary>
+        public string Default { get; internal set; }
+
+        /// <summary>
+        /// Optional possibilities. If null anything is allowed.
+        /// </summary>
+        public IEnumerable<string> Possibilities { get; internal set; }
+
+        /// <summary></summary>
+        public string Answer { internal get; set; }
+    }
+
+    /// <summary>
+    /// A global event which can produce rapidly changing progress information
+    /// which would potentially pollute or put unnecessary stress onto Serilog loggers.
+    /// </summary>
+    /// <param name="sender">The source of the progress</param>
+    /// <param name="args"></param>
     public delegate void UppmProgressHandler(ILogging sender, ProgressEventArgs args);
+
+    /// <summary>
+    /// If uppm needs user input this event is fired. The subscriber should assign the <see cref="AskUserEventArgs.Answer"/> in the args.
+    /// If <see cref="AskUserEventArgs.Answer"/> is not assigned or null or empty the default is assumed.
+    /// </summary>
+    /// <param name="sender">possible sender logger. It can be null though</param>
+    /// <param name="args"></param>
+    public delegate void UppmAskUserHandler(ILogging sender, AskUserEventArgs args);
 
     /// <summary>
     /// Utilities for logging
@@ -146,5 +184,92 @@ namespace uppm.Core
         /// which would potentially pollute or put unnecessary stress onto Serilog loggers.
         /// </summary>
         public static event UppmProgressHandler OnAnyProgress;
+
+        /// <summary>
+        /// When user input is needed anywhere during using uppm this method should be called.
+        /// It invokes <see cref="OnQuestion"/> where the implementer can either block uppm with user query or use the default value.
+        /// </summary>
+        /// <param name="question">Question to be asked from user</param>
+        /// <param name="possibilities">If null any input will be accepted. Otherwise input is compared to these possible entries ignoring case. If no match is found question will be asked again.</param>
+        /// <param name="defaultValue">This value is used when user submits an empty input or in a potential unattended mode.</param>
+        /// <param name="source">Optional logger which asks the question</param>
+        /// <returns>User answer or default</returns>
+        public static string AskUser(
+            string question,
+            IEnumerable<string> possibilities = null,
+            string defaultValue = "",
+            ILogging source = null)
+        {
+            var possarray = possibilities?.ToArray();
+
+            L.Information(question);
+            L.Information("    ({Possibilities})", possarray.Humanize("or"));
+            L.Information("    (default is {DefaultValue})", defaultValue);
+
+            var args = new AskUserEventArgs
+            {
+                Question = question,
+                Default = defaultValue
+            };
+            OnQuestion?.Invoke(source, args);
+            if (possarray != null &&
+                !possarray.Any(p => p.EqualsCaseless(args.Answer)))
+            {
+                L.Warning("Invalid answer submitted for question: {Answer}\nAsking again.", args.Answer);
+                AskUser(question, possarray, defaultValue, source);
+            }
+
+            var res = string.IsNullOrWhiteSpace(args.Answer) ? defaultValue : args.Answer;
+            L.Debug("{Answer} is answered", res);
+            return res;
+        }
+        /// <summary>
+        /// A shortcut to <see cref="AskUser"/> for selecting an enumeration
+        /// </summary>
+        /// <typeparam name="T">Enumeration type</typeparam>
+        /// <param name="question">Question to be asked from user</param>
+        /// <param name="possibilities">If null any input will be accepted. Otherwise input is compared to these possible entries ignoring case. If no match is found question will be asked again.</param>
+        /// <param name="defaultValue">This value is used when user submits an empty input or in a potential unattended mode.</param>
+        /// <param name="source">Optional logger which asks the question</param>
+        /// <returns></returns>
+        public static T AskUserEnum<T>(
+            string question,
+            IEnumerable<T> possibilities = null,
+            T defaultValue = default(T),
+            ILogging source = null) where T : struct
+        {
+            if (typeof(T).IsEnum) throw new ArgumentException($"{typeof(T)} type is not enum.");
+            var poss = possibilities == null ? Enum.GetNames(typeof(T)) : possibilities.Select(p => p.ToString());
+            var resstr = AskUser(question, poss, defaultValue.ToString(), source);
+            return Enum.TryParse<T>(resstr, true, out var res) ? res : defaultValue;
+        }
+
+        /// <summary>
+        /// A shortcut to <see cref="AskUser"/> for yes (true) / no (false) questions
+        /// </summary>
+        /// <param name="question">Question to be asked from user</param>
+        /// <param name="defaultValue">This value is used when user submits an empty input or in a potential unattended mode.</param>
+        /// <param name="source">Optional logger which asks the question</param>
+        /// <returns>User answer or default</returns>
+        public static bool ConfirmWithUser(
+            string question,
+            bool defaultValue = true,
+            ILogging source = null)
+        {
+            var res = AskUser(
+                question,
+                new[] {"Y", "N"},
+                defaultValue ? "Y" : "N",
+                source);
+            if (res.EqualsCaseless("Y")) return true;
+            if (res.EqualsCaseless("N")) return false;
+            return defaultValue;
+        }
+
+        /// <summary>
+        /// If uppm needs user input this event is fired. The subscriber should assign the <see cref="AskUserEventArgs.Answer"/> in the args.
+        /// If <see cref="AskUserEventArgs.Answer"/> is not assigned or null or empty the default is assumed.
+        /// </summary>
+        public static event UppmAskUserHandler OnQuestion;
     }
 }
