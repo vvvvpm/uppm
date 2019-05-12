@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Fasterflect;
+using md.stdl.Coding;
 using md.stdl.String;
 using Serilog;
 using uppm.Core.Utils;
@@ -95,11 +96,14 @@ namespace uppm.Core.Scripting
         /// <param name="assembly"></param>
         public static void LoadEngines(Assembly assembly)
         {
-            var enginetypes = assembly.GetTypes().Where(t => t.GetInterfaces().Any(i => i == typeof(IScriptEngine)));
+            var enginetypes = assembly.GetTypes().Where(
+                t => t.IsClass && !t.IsAbstract && t.GetInterfaces().Any(i => i == typeof(IScriptEngine))
+            );
             foreach (var enginetype in enginetypes)
             {
-                var engine = enginetype.CreateInstance() as IScriptEngine;
-                //if(engine == null) continue;
+                if(!(enginetype.CreateInstance() is IScriptEngine engine)) continue;
+                KnownScriptEngines.UpdateGeneric(engine.Extension, engine);
+                Logging.L.Verbose("Script engine {SciptEngine} is registered", engine.Extension);
             }
         }
 

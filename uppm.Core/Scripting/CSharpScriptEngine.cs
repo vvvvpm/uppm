@@ -97,9 +97,18 @@ namespace uppm.Core.Scripting
         public bool TryGetScriptText(string text, out string scripttext, HashSet<PartialPackageReference> imports = null, string parentRepo = "")
         {
             _getScriptTextRecursionDepthCounter++;
-            //TODO: process and transform uppm-ref #loads
-            // to do that create a temporary file for referenced packages
-            // and inject those files into uppm-ref #loads
+
+            // TODO: flatten imports
+            if (_getScriptTextRecursionDepthCounter > _getScriptTextRecursionMaxDepth)
+            {
+                scripttext = "";
+                Log.Fatal(
+                    "Maximum recursion depth of {RecursDepth} reached while importing scripts. Maybe the package has circular imports?",
+                    _getScriptTextRecursionMaxDepth
+                );
+                _getScriptTextRecursionDepthCounter--;
+                return false;
+            }
 
             var importrefsregex = new Regex("#load\\s\"uppm-ref:(?<packref>.*)\"");
 
@@ -107,7 +116,7 @@ namespace uppm.Core.Scripting
 
             var outtext = importrefsregex.Replace(text, match =>
             {
-                var packreftext = match.Groups["packref"].Value;
+                var packreftext = match.Groups["packref"].Value.Trim();
 
                 Log.Debug("Importing script of {PackRef}", packreftext);
 
@@ -130,7 +139,7 @@ namespace uppm.Core.Scripting
                           importPackScriptEngine is CSharpScriptEngine importCsSe;
                 if (!success)
                 {
-                    Log.Error("{PackRef} doesn't appear to be a C# script", packreftext);
+                    Log.Error("{PackRef} doesn't appear to have a C# script", packreftext);
                     return "";
                 }
 
@@ -180,8 +189,7 @@ namespace uppm.Core.Scripting
                 var logger = CreateScriptLogger(this);
                 var src = SourceText.From(pack.Meta.ScriptText);
                 var ctx = new ScriptContext(src, Environment.CurrentDirectory, Enumerable.Empty<string>());
-                var rtdepresolver = new RuntimeDependencyResolver(logger, true);
-                var compiler = new ScriptCompiler(logger, rtdepresolver);
+                var compiler = new ScriptCompiler(logger, true);
                 var compctx = compiler.CreateCompilationContext<object, ScriptHost>(ctx);
 
                 foreach (var ass in ReferencedAssemblies)
@@ -193,7 +201,7 @@ namespace uppm.Core.Scripting
 
                 var scriptResultT = compctx.Script.RunAsync(host, exception =>
                 {
-                    Log.Error(exception, "Script of {$PackRef} threw an exception:", pack.Meta.Self);
+                    Log.Fatal(exception, "Script of {$PackRef} threw an exception:", pack.Meta.Self);
                     success = false;
                     return true;
                 });
@@ -206,7 +214,7 @@ namespace uppm.Core.Scripting
                 {
                     if (!(result.Get(action) is Action commandDelegate))
                     {
-                        Log.Error("Script of {$PackRef} doesn't contain action {ScriptAction}", pack.Meta.Self, action);
+                        Log.Fatal("Script of {$PackRef} doesn't contain action {ScriptAction}", pack.Meta.Self, action);
                         success = false;
                     }
                     else
