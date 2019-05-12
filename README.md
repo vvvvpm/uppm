@@ -24,8 +24,9 @@ Uppm first look for `<name>`, then `<version>` if specified as described below. 
 * GitLink
 * HJSON
 * Humanizer
-* LibGit2Sharp
 * Json.NET
+* LibGit2Sharp
+* PowerArgs
 * ReadLine
 * Serilog
 * Serilog.Encricher.WhenDo
@@ -45,7 +46,7 @@ The jist of uppm is available as an independent library, which means you can imp
 
 uppm.Core expects the implementer to tell some basic info about itself (via `IUppmImplementation`) and tell uppm the application it's managing the packages for, so called the `TargetApplication`. Implementer can also configure how they want to process log events coming from Serilog via `UppmLog.ConfigureLogger`. Uppm provides a default Observable log sink too and the implementer can also subscribe to that via that configuration method.
 
-Multiple script engines are supported via the `IScriptEngine` interface. A script engine tells uppm how to read metadata from a complete package reference, how to get the executable script text and finally executes that said text. Uppm identifies and inferes these engines via file extensions, because usually scripts are available as files on the local file system, but nothing stops the implementer to exploit it for their own needs. Currently C# (7.3 via dotnet-scrpit) and Powershell are the 2 engines coming with uppm.Core. 
+Multiple script engines are supported via the `IScriptEngine` interface. A script engine tells uppm how to read metadata from a complete package reference, how to get the executable script text and finally executes that said text. Uppm identifies and inferes these engines via file extensions, because usually scripts are available as files on the local file system, but nothing stops the implementer to exploit it for their own needs. Currently C# (8.0 via dotnet-scrpit) and Powershell are the 2 engines coming with uppm.Core. 
 
 Uppm gets a package via a `PackageReference`. At first it uses a `PartialPackageReference` which is supposedly coming from the user. The partial reference might have some data which needs to be infered depending on the current context and uppm then tries to generate a `CompletePackageReference` where all the necessary data is available to get the package.
 
