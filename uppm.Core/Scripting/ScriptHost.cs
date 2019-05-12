@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Management.Automation;
@@ -130,5 +131,41 @@ namespace uppm.Core.Scripting
         /// <param name="dstdir"></param>
         public void Extract(string src, string dstdir) =>
             FileUtils.ExtractArchive(src, dstdir, this);
+
+        /// <summary>
+        /// When user input is needed during script execution this method should be called.
+        /// </summary>
+        /// <param name="question">Question to be asked from user</param>
+        /// <param name="possibilities">If null any input will be accepted. Otherwise input is compared to these possible entries ignoring case. If no match is found question will be asked again.</param>
+        /// <param name="defaultValue">This value is used when user submits an empty input or in a potential unattended mode.</param>
+        /// <returns>User answer or default</returns>
+        public string AskUser(
+            string question,
+            IEnumerable<string> possibilities = null,
+            string defaultValue = "") =>
+            Logging.AskUser(question, possibilities, defaultValue, this);
+
+        /// <summary>
+        /// A shortcut to <see cref="AskUser"/> for selecting an enumeration
+        /// </summary>
+        /// <typeparam name="T">Enumeration type</typeparam>
+        /// <param name="question">Question to be asked from user</param>
+        /// <param name="possibilities">If null any input will be accepted. Otherwise input is compared to these possible entries ignoring case. If no match is found question will be asked again.</param>
+        /// <param name="defaultValue">This value is used when user submits an empty input or in a potential unattended mode.</param>
+        /// <returns></returns>
+        public T AskUserEnum<T>(
+            string question,
+            IEnumerable<T> possibilities = null,
+            T defaultValue = default(T)) where T : struct =>
+            Logging.AskUserEnum<T>(question, possibilities, defaultValue, this);
+
+        /// <summary>
+        /// A shortcut to <see cref="AskUser"/> for yes (true) / no (false) questions
+        /// </summary>
+        /// <param name="question">Question to be asked from user</param>
+        /// <param name="defaultValue">This value is used when user submits an empty input or in a potential unattended mode.</param>
+        /// <returns>User answer or default</returns>
+        public bool ConfirmWithUser(string question, bool defaultValue = true) =>
+            Logging.ConfirmWithUser(question, defaultValue, this);
     }
 }

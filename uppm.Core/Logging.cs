@@ -223,6 +223,7 @@ namespace uppm.Core
             L.Debug("{Answer} is answered", res);
             return res;
         }
+
         /// <summary>
         /// A shortcut to <see cref="AskUser"/> for selecting an enumeration
         /// </summary>
