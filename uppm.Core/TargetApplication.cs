@@ -6,17 +6,19 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Fasterflect;
 using md.stdl.Coding;
 using Microsoft.Win32;
 using Serilog;
 using uppm.Core.Repositories;
+using uppm.Core.Scripting;
 
 namespace uppm.Core
 {
     /// <summary>
     /// Machine type of an executable
     /// </summary>
-    public enum MachineType
+    public enum Architecture
     {
         Native = 0,
         x86 = 0x014c,
@@ -24,19 +26,35 @@ namespace uppm.Core
         x64 = 0x8664
     }
 
-    // TODO: refactor so packages tell their target applications
+    // TODO: Applications report their packages
     /// <summary>
     /// Packages can target any associated application it manages packages for.
     /// This class contains information about such a target application
     /// </summary>
     public abstract class TargetApp : ILogging
     {
-        private static readonly Dictionary<string, TargetApp> _knownTargetApps = new Dictionary<string, TargetApp>();
-        
+        public static readonly Dictionary<string, TargetApp> KnownTargetApps = new Dictionary<string, TargetApp>();
+        private static TargetApp _currentTargetApp;
+
+        public static readonly Architecture[] SupportedArchitectures = {Architecture.x64, Architecture.x86};
+
         /// <summary>
         /// The globally inferred target application, unless a package specifies a different one
         /// </summary>
-        public static TargetApp CurrentTargetApp { get; private set; }
+        public static TargetApp CurrentTargetApp
+        {
+            get => _currentTargetApp;
+            private set
+            {
+                if (value == null)
+                {
+                    Logging.L.Error("Trying to set current target application to null. That's nasty. Don't do that.");
+                    return;
+                }
+                value.Log.Verbose("Set {TargetApp} as current target application", value.ShortName);
+                _currentTargetApp = value;
+            }
+        }
 
         /// <summary>
         /// Tries to get a known target application
@@ -44,7 +62,24 @@ namespace uppm.Core
         /// <param name="sname"></param>
         /// <param name="app"></param>
         /// <returns></returns>
-        public static bool TryGetKnownApp(string sname, out TargetApp app) => _knownTargetApps.TryGetValue(sname, out app);
+        public static bool TryGetKnownApp(string sname, out TargetApp app) => KnownTargetApps.TryGetValue(sname, out app);
+
+
+        /// <summary>
+        /// Register known target applications from an assembly
+        /// </summary>
+        /// <param name="assembly"></param>
+        public static void RegisterApps(Assembly assembly)
+        {
+            var enginetypes = assembly.GetTypes().Where(
+                t => t.IsClass && !t.IsAbstract && t.IsSubclassOf(typeof(TargetApp))
+            );
+            foreach (var enginetype in enginetypes)
+            {
+                var engine = enginetype.CreateInstance() as TargetApp;
+                engine?.RegisterAsKnownApp();
+            }
+        }
 
         /// <summary>
         /// Tries to set the current target application to the specified one.
@@ -60,8 +95,7 @@ namespace uppm.Core
             app.DefaultRepository.RegisterDefaultRepository();
             return true;
         }
-
-
+        
         protected string PAppFolder;
         protected string PGlobalPacksFolder;
         protected string PLocalPacksFolder;
@@ -70,6 +104,38 @@ namespace uppm.Core
         /// Short, friendly name of the application (like "ue4" or "vvvv")
         /// </summary>
         public virtual string ShortName { get; set; }
+
+        /// <summary>
+        /// Desired architecture if it can't be determined from the target
+        /// </summary>
+        public Architecture DefualtArchitecture { get; set; } = Architecture.x64;
+
+        public Architecture _appArch = Architecture.Native;
+
+        public Architecture AppArchitecture
+        {
+            get
+            {
+                if (File.Exists(AbsoluteExe))
+                {
+                    if (_appArch == Architecture.Native)
+                    {
+                        _appArch = GetArchitecture();
+                        Log.Verbose("Determining architecture of {TargetApp} for the first time ({Arch})", ShortName, _appArch);
+                    }
+                }
+                else _appArch = DefualtArchitecture;
+
+                if (_appArch == Architecture.Native)
+                {
+                    _appArch = Logging.AskUserEnum(
+                        $"Default architecture for {ShortName} was not specified and it can't be automatically determined. Please choose one:",
+                        SupportedArchitectures,
+                        Architecture.x64);
+                }
+                return _appArch;
+            }
+        }
 
         /// <summary>
         /// Containing folder of the application. Override setter for validation and inference.
@@ -139,7 +205,8 @@ namespace uppm.Core
         public TargetApp RegisterAsKnownApp()
         {
             DefaultRepository.RegisterRepository();
-            _knownTargetApps.UpdateGeneric(ShortName, this);
+            KnownTargetApps.UpdateGeneric(ShortName, this);
+            Log.Verbose("Registering {TargetApp} as known target application", ShortName);
             return this;
         }
 
@@ -147,7 +214,7 @@ namespace uppm.Core
         {
             CurrentTargetApp?.DefaultRepository?.UnregisterDefaultRepository();
             DefaultRepository.RegisterRepository();
-            _knownTargetApps.UpdateGeneric(ShortName, this);
+            KnownTargetApps.UpdateGeneric(ShortName, this);
             CurrentTargetApp = this;
             return this;
         }
@@ -156,7 +223,7 @@ namespace uppm.Core
         /// Gets the processor architecture or the machine type of the target application.
         /// </summary>
         /// <returns></returns>
-        public virtual MachineType GetArchitecture()
+        protected virtual Architecture GetArchitecture()
         {
             const int PE_POINTER_OFFSET = 60;
             const int MACHINE_OFFSET = 4;
@@ -168,7 +235,7 @@ namespace uppm.Core
             // dos header is 64 bytes, last element, long (4 bytes) is the address of the PE header
             int PE_HEADER_ADDR = BitConverter.ToInt32(data, PE_POINTER_OFFSET);
             int machineUint = BitConverter.ToUInt16(data, PE_HEADER_ADDR + MACHINE_OFFSET);
-            return (MachineType)machineUint;
+            return (Architecture)machineUint;
         }
 
         /// <summary>
@@ -217,58 +284,5 @@ namespace uppm.Core
 
         /// <inheritdoc />
         public override string ShortName => Uppm.Implementation.GetSystemName();
-    }
-
-    /// <summary>
-    /// Target application is vvvv
-    /// </summary>
-    public class VvvvApp : TargetApp
-    {
-        /// <inheritdoc />
-        public override string ShortName { get => "vvvv"; set { } }
-
-        /// <inheritdoc />
-        public override string Executable { get => "vvvv.exe"; set { } }
-
-        /// <inheritdoc />
-        public override string AppFolder
-        {
-            get => PAppFolder;
-            set => PAppFolder = GetVvvvFolder(value);
-        }
-
-        /// <inheritdoc />
-        public override string GlobalPacksFolder
-        {
-            get => PAppFolder;
-            set { }
-        }
-
-        /// <inheritdoc />
-        public override string LocalPacksFolder
-        {
-            get => PAppFolder;
-            set { }
-        }
-
-        private string GetVvvvFolder(string dir)
-        {
-            if (string.IsNullOrWhiteSpace(dir))
-            {
-                var regkey = (string)Registry.GetValue("HKEY_CLASSES_ROOT\\VVVV\\Shell\\Open\\Command", "", "");
-                if (string.IsNullOrWhiteSpace(regkey))
-                {
-                    Log.Information("There's no VVVV registered, using working directory", this);
-                    return Environment.CurrentDirectory;
-                }
-                else
-                {
-                    var exepath = regkey.Split(' ')[0].Replace("\"", "");
-                    //Console.WriteLine("Found a VVVV in registry.");
-                    return Path.GetDirectoryName(Path.GetFullPath(exepath));
-                }
-            }
-            return CurrentOrNewFolder(dir);
-        }
     }
 }
