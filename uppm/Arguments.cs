@@ -9,6 +9,7 @@ using uppm.Core;
 
 namespace uppm
 {
+    [ArgIgnoreCase]
     public class UppmArguments
     {
         [ArgDescription("Short name of the application targeted by the input package.")]
@@ -56,12 +57,15 @@ namespace uppm
         [ArgShortcut("-v")]
         public bool Verbose { get; set; }
 
-        public LogEventLevel GetLoggingLevel()
+        public LogEventLevel LoggingLevel
         {
-            if (Verbose) return LogEventLevel.Verbose;
-            if (Debug) return LogEventLevel.Debug;
-            if (Quiet) return LogEventLevel.Error;
-            return LogEventLevel.Information;
+            get
+            {
+                if (Verbose) return LogEventLevel.Verbose;
+                if (Debug) return LogEventLevel.Debug;
+                if (Quiet) return LogEventLevel.Error;
+                return LogEventLevel.Information;
+            }
         }
     }
 }

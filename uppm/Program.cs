@@ -30,7 +30,7 @@ namespace uppm
 
             Logging.ConfigureLogger(
                 logger => logger
-                    .MinimumLevel.Is(_arguments.GetLoggingLevel())
+                    .MinimumLevel.Is(_arguments.LoggingLevel)
                     .WriteTo.Console(),
                 obslog => obslog.Subscribe(BreakOnError)
             );
@@ -42,7 +42,7 @@ namespace uppm
             {
                 if (Enum.TryParse<Architecture>(_arguments.AppArchitecture, true, out var arch))
                 {
-                    knownApp.DefualtArchitecture = arch;
+                    knownApp.DefaultArchitecture = arch;
                 }
             }
 
