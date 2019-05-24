@@ -74,7 +74,7 @@ namespace uppm.Core
         /// <summary>
         /// Reference to self
         /// </summary>
-        public PackageReference Self { get; set; }
+        public PartialPackageReference Self { get; set; }
 
         /// <summary>
         /// Reference to the <see cref="TargetApp"/> which this package is created for

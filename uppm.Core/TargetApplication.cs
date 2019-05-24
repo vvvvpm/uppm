@@ -26,7 +26,32 @@ namespace uppm.Core
         x64 = 0x8664
     }
 
+    /// <summary>
+    /// Indicates a target installation scope for a package.
+    /// </summary>
+    /// <remarks>
+    /// It's marked as flags so <code>InstalledPackageScope.Global | InstalledPackageScope.Local</code>
+    /// means that work with both. Of course this can only apply to enumerating, packs have to decide on one.
+    /// </remarks>
+    [Flags]
+    public enum InstalledPackageScope
+    {
+        /// <summary>
+        /// Packages in global scope are placed to a central location specified by the
+        /// target application and presumably they are available to use everywhere at least
+        /// in the scope of the current user.
+        /// </summary>
+        Global = 1,
+
+        /// <summary>
+        /// Packages in local scope are specific to the current working directory
+        /// if the target application supports that.
+        /// </summary>
+        Local = 2,
+    }
+
     // TODO: Applications report their packages
+    // TODO: Cache already reported packages
     /// <summary>
     /// Packages can target any associated application it manages packages for.
     /// This class contains information about such a target application
@@ -48,7 +73,8 @@ namespace uppm.Core
             {
                 if (value == null)
                 {
-                    Logging.L.Error("Trying to set current target application to null. That's nasty. Don't do that.");
+                    var stacktrace = new StackTrace();
+                    Logging.L.Error("Trying to set current target application to null. Refused to do that. At:\n{$StackTrace}", stacktrace);
                     return;
                 }
                 value.Log.Verbose("Set {TargetApp} as current target application", value.ShortName);
@@ -63,8 +89,7 @@ namespace uppm.Core
         /// <param name="app"></param>
         /// <returns></returns>
         public static bool TryGetKnownApp(string sname, out TargetApp app) => KnownTargetApps.TryGetValue(sname, out app);
-
-
+        
         /// <summary>
         /// Register known target applications from an assembly
         /// </summary>
@@ -106,12 +131,15 @@ namespace uppm.Core
         public virtual string ShortName { get; set; }
 
         /// <summary>
-        /// Desired architecture if it can't be determined from the target
+        /// Desired architecture if it can't be determined from the target application (i.e.: the executable doesn't exist yet)
         /// </summary>
-        public Architecture DefualtArchitecture { get; set; } = Architecture.x64;
+        public Architecture DefaultArchitecture { get; set; } = Architecture.x64;
 
         public Architecture _appArch = Architecture.Native;
 
+        /// <summary>
+        /// Actual machine type of the target application
+        /// </summary>
         public Architecture AppArchitecture
         {
             get
@@ -124,7 +152,7 @@ namespace uppm.Core
                         Log.Verbose("Determining architecture of {TargetApp} for the first time ({Arch})", ShortName, _appArch);
                     }
                 }
-                else _appArch = DefualtArchitecture;
+                else _appArch = DefaultArchitecture;
 
                 if (_appArch == Architecture.Native)
                 {
@@ -137,6 +165,22 @@ namespace uppm.Core
             }
         }
 
+        /// <summary>
+        /// Try to get an installed package via a reference.
+        /// </summary>
+        /// <param name="packref"></param>
+        /// <param name="pack"></param>
+        /// <returns></returns>
+        /// <remarks>Implementation must construct the full package including the script engine. Constructing the dependency tree is not required</remarks>
+        public abstract bool TryGetInstalledPackage(PartialPackageReference packref, InstalledPackageScope scope, out Package pack);
+
+        /// <summary>
+        /// Enumerate all installed packages in specified scope. Return false in your function to break enumeration.
+        /// </summary>
+        /// <param name="scope"></param>
+        /// <param name="action"></param>
+        public abstract void EnumerateInstalledPackages(InstalledPackageScope scope, Func<Package, bool> action);
+                
         /// <summary>
         /// Containing folder of the application. Override setter for validation and inference.
         /// </summary>
@@ -268,6 +312,13 @@ namespace uppm.Core
     /// </summary>
     public class CurrentUppmApp : TargetApp
     {
+        public override bool TryGetInstalledPackage(PartialPackageReference packref, InstalledPackageScope scope, out Package pack)
+        {
+            Logging.NotYetImplemented();
+            pack = null;
+            return false;
+        }
+
         /// <inheritdoc />
         public override string AppFolder
         {

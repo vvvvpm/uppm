@@ -121,7 +121,7 @@ namespace uppm.Core.Repositories
         /// <param name="reference"></param>
         /// <param name="pack">The output package</param>
         /// <returns>True if creating a package was successful</returns>
-        public static bool TryGetPackage(this PartialPackageReference reference, out Package pack)
+        public static bool TryGetPackageFromRepositories(this PartialPackageReference reference, out Package pack)
         {
             pack = null;
             if (reference == null) return false;

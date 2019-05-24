@@ -16,6 +16,14 @@ using uppm.Core.Scripting;
 
 namespace uppm.Core
 {
+    public enum ExistingPackageResolution
+    {
+        NonExisting,
+        Skip,
+        UpdateWithInput,
+        UpdateWithExisting
+    }
+
     /// <summary>
     /// Actual package containing side effects and practical utilities
     /// </summary>
@@ -29,6 +37,7 @@ namespace uppm.Core
     public class Package : ILogging
     {
         private Package _root;
+        private InstalledPackageScope _scope;
 
         /// <summary>
         /// Metadata of the package
@@ -57,6 +66,15 @@ namespace uppm.Core
         {
             get => _root ?? this;
             set => _root = value;
+        }
+
+        /// <summary>
+        /// The target scope this package is supposed to be located after installation.
+        /// </summary>
+        public InstalledPackageScope Scope
+        {
+            get => Meta.ForceGlobal ? InstalledPackageScope.Global : _scope;
+            set => _scope = value;
         }
 
         /// <summary>
@@ -96,10 +114,12 @@ namespace uppm.Core
 
             if (DependencyTreeDepth == 0 && recursive)
             {
+                var isInstall = action.EqualsCaseless("install");
+
                 if (FlatDependencies.Count == 0)
                     ConstructDependencyTree();
 
-                if (action.EqualsCaseless("install") && confirmLicenseWithUser)
+                if (isInstall && confirmLicenseWithUser)
                 {
                     Log.Information("In order to use this package and its dependencies please accept these licenses:");
                     LogLicense();
@@ -170,9 +190,37 @@ namespace uppm.Core
                 FlatDependencies.Clear();
             }
 
-            foreach (var depref in Meta.Dependencies)
+            foreach (var idepref in Meta.Dependencies)
             {
-                if (!depref.TryGetPackage(out var dependency))
+                var depref = idepref;
+                var existingResolution = ResolveExistingPackage(ref depref, out var dependency);
+                switch (existingResolution)
+                {
+                    case ExistingPackageResolution.Skip:
+                        Log.Information(
+                            "Skip dependency because a more appropriate or a newer version is already installed.",
+                            depref
+                        );
+                        break;
+                        continue;
+
+                    case ExistingPackageResolution.UpdateWithInput:
+                        Log.Information(
+                            "Existing package will be overwritten.",
+                            depref
+                        );
+                        break;
+
+                    case ExistingPackageResolution.UpdateWithExisting:
+                        Log.Information(
+                            "Dependency version {DepVer} is overridden in favor of updating to a newer version of the same pack {NewDepVer},\n    because a package referring to a higher version scope or to the latest",
+                            idepref.Version,
+                            depref.Version
+                        );
+                        break;
+                }
+
+                if (!depref.TryGetPackageFromRepositories(out dependency))
                 {
                     Log.Warning(
                         "Couldn't get dependency {$DepPackRef} of {PackName}.\nSkipping dependency. Probably the package will have issues.",
@@ -182,17 +230,20 @@ namespace uppm.Core
                 }
                 if (Root.FlatDependencies.TryGetValue(depref.Name, out var rootdep))
                 {
-                    if (HandleConflictingSpecialVersions(dependency, rootdep)) continue;
+                    if (HandleConflictingSpecialVersions(dependency.Meta.Self, rootdep.Meta.Self)) continue;
                     if (HandleSpecialNonSpecialVersionConflict(dependency, rootdep)) continue;
                     if (HandleIsLatestMoreSpecific(dependency, rootdep)) continue;
 
                     // in case both are the latest prefer already existing
                     if (rootdep.Meta.IsLatest && dependency.Meta.IsLatest) continue;
 
+                    dependency.Scope = Scope;
+
                     HandleSemanticalVersionConflict(dependency, rootdep);
                 }
                 else
                 {
+                    dependency.Scope = Scope;
                     Root.FlatDependencies.UpdateGeneric(dependency.Meta.Name, dependency);
                     ConstructDependencyTree(dependency);
                 }
@@ -225,17 +276,101 @@ namespace uppm.Core
             return res;
         }
 
+        private ExistingPackageResolution ResolveExistingPackage(ref PartialPackageReference packref, out Package existingPackage)
+        {
+            existingPackage = null;
+            Log.Verbose(
+                "Check {$DepPackRef} if it's already installed.",
+                packref
+            );
+            if (TargetApp.CurrentTargetApp.TryGetInstalledPackage(packref, Scope, out existingPackage))
+            {
+                Log.Information(
+                    "Package {$DepPackRef} is already installed.",
+                    packref
+                );
+                if (packref.Version.EqualsCaseless(existingPackage.Meta.Version))
+                {
+                    Log.Information("Exact same version installed, Skipping");
+                    return ExistingPackageResolution.Skip;
+                }
+
+                if (HandleConflictingSpecialVersions(packref, existingPackage.Meta.Self))
+                    return ExistingPackageResolution.Skip;
+
+
+                if (existingPackage.Meta.IsLatest && !packref.IsSpecialVersion)
+                {
+                    if (Logging.ConfirmWithUser(
+                        "Existing package marked to be always the latest version (including Major version). Do you want to update it?",
+                        source: this
+                    )) {
+                        packref = existingPackage.Meta.Self;
+                        return ExistingPackageResolution.UpdateWithExisting;
+                    }
+                    else return ExistingPackageResolution.Skip;
+                }
+
+
+                if (existingPackage.Meta.IsSemanticalVersion(out var existingVersion) && packref.IsSemanticalVersion(out var depVersion))
+                {
+                    if (existingVersion == depVersion)
+                    {
+                        Log.Information("Exact same version installed, Skipping");
+                        return ExistingPackageResolution.Skip;
+                    }
+
+                    if (depVersion > existingVersion)
+                    {
+                        if (Logging.ConfirmWithUser("Already installed pack is a lower version. Do you want to overwrite it?", source: this))
+                            return ExistingPackageResolution.UpdateWithInput;
+                        else return ExistingPackageResolution.Skip;
+                    }
+
+                    if (existingVersion.Major > depVersion.Major)
+                    {
+                        LogDependencyMajorMinorConflict(existingPackage.Meta.Self, packref);
+                        return ExistingPackageResolution.Skip;
+                    }
+
+                    var maxscope = Math.Min((int)existingVersion.Scope, (int)depVersion.Scope);
+
+                    if (existingVersion.Scope < depVersion.Scope)
+                    {
+                        Log.Information(
+                            "Installed package points to the latest version of its scope: {ExistingScope} scope instead of the input package's {DepScope} scope.",
+                            existingVersion.Scope,
+                            depVersion.Scope
+                        );
+
+                        if (Logging.ConfirmWithUser(
+                            "Do you want to update it?",
+                            source: this
+                        ))
+                        {
+                            packref = existingPackage.Meta.Self;
+                            return ExistingPackageResolution.UpdateWithExisting;
+                        }
+                        else return ExistingPackageResolution.Skip;
+                    }
+                }
+
+                return ExistingPackageResolution.UpdateWithInput;
+            }
+            else return ExistingPackageResolution.NonExisting;
+        }
+
         /// <summary>
         /// in case conflicting special versions prefer already existing
         /// </summary>
         /// <param name="current"></param>
         /// <param name="existing"></param>
         /// <returns></returns>
-        private bool HandleConflictingSpecialVersions(Package current, Package existing)
+        private bool HandleConflictingSpecialVersions(PackageReference current, PackageReference existing)
         {
-            if (current.Meta.IsSpecialVersion && existing.Meta.IsSpecialVersion)
+            if (current.IsSpecialVersion && existing.IsSpecialVersion)
             {
-                if (!existing.Meta.Version.EqualsCaseless(current.Meta.Version))
+                if (!existing.Version.EqualsCaseless(current.Version))
                     LogDependencyVersionConflict(existing, current);
                 return true;
             }
@@ -254,7 +389,7 @@ namespace uppm.Core
             {
                 var kept = existing.Meta.IsSpecialVersion ? current : existing;
                 var skipped = existing.Meta.IsSpecialVersion ? existing : current;
-                LogDependencyVersionConflict(kept, skipped);
+                LogDependencyVersionConflict(kept.Meta.Self, skipped.Meta.Self);
                 
                 Root.FlatDependencies.UpdateGeneric(kept.Meta.Name, kept);
 
@@ -275,7 +410,7 @@ namespace uppm.Core
             if (existing.Meta.IsLatest != current.Meta.IsLatest)
             {
                 var kept = existing.Meta.IsLatest ? current : existing;
-                LogDependencyLatestConflict(kept);
+                LogDependencyLatestConflict(kept.Meta.Self);
                 
                 Root.FlatDependencies.UpdateGeneric(kept.Meta.Name, kept);
 
@@ -301,7 +436,7 @@ namespace uppm.Core
                 var skipped = currver > rootver ? existing : current;
                 if (currver.Major != rootver.Major || currver.Minor != rootver.Minor)
                 {
-                    LogDependencyMajorMinorConflict(kept, skipped);
+                    LogDependencyMajorMinorConflict(kept.Meta.Self, skipped.Meta.Self);
                 }
                 Root.FlatDependencies.UpdateGeneric(kept.Meta.Name, kept);
 
@@ -311,46 +446,46 @@ namespace uppm.Core
             return false;
         }
 
-        private void LogDependencyVersionConflict(Package kept, Package skipped)
+        private void LogDependencyVersionConflict(PackageReference kept, PackageReference skipped)
         {
             Log.Warning(
-@"Conflicting versions are referenced of the same package as dependencies by other packages: {KeptName}
+@"Trying to install conflicting versions of the same package: {KeptName}
     kept version    `{$KeptVersion}`
     skipped version `{$SkippedVersion}`
 
     Multiple package versions are not supported in uppm by design. Only one of them will be installed.
     This might be OK and best case scenario nothing will break.",
-                kept.Meta.Name,
-                kept.Meta.Version,
-                skipped.Meta.Version
+                kept.Name,
+                kept.Version,
+                skipped.Version
             );
         }
 
-        private void LogDependencyLatestConflict(Package kept)
+        private void LogDependencyLatestConflict(PackageReference kept)
         {
             Log.Warning(
-@"More specific version is referenced of the same package as dependencies by other packages: {KeptName}
+@"Trying to install both latest and a more specific version of the same package: {KeptName}
     kept version `{$KeptVersion}`
 
     Multiple package versions are not supported in uppm by design. Only one of them will be installed.
     This might be OK and best case scenario nothing will break.",
-                kept.Meta.Name,
-                kept.Meta.Version
+                kept.Name,
+                kept.Version
             );
         }
 
-        private void LogDependencyMajorMinorConflict(Package kept, Package skipped)
+        private void LogDependencyMajorMinorConflict(PackageReference kept, PackageReference skipped)
         {
             Log.Warning(
-@"Potentially incompatible versions are referenced of the same package as dependencies by other packages: {KeptName}
+@"Trying to install potentially incompatible versions of the same package: {KeptName}
     kept higher version   `{$KeptVersion}`
     skipped lower version `{$SkippedVersion}`
 
     Multiple package versions are not supported in uppm by design. Only one of them will be installed.
     This might be OK and best case scenario nothing will break.",
-                kept.Meta.Name,
-                kept.Meta.Version,
-                skipped.Meta.Version
+                kept.Name,
+                kept.Version,
+                skipped.Version
             );
         }
 
