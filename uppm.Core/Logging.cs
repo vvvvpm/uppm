@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -215,7 +216,7 @@ namespace uppm.Core
             if (possarray != null &&
                 !possarray.Any(p => p.EqualsCaseless(args.Answer)))
             {
-                L.Warning("Invalid answer submitted for question: {Answer}\nAsking again.", args.Answer);
+                L.Warning("Invalid answer submitted for question: {Answer}\n    Asking again.", args.Answer);
                 AskUser(question, possarray, defaultValue, source);
             }
 
@@ -272,5 +273,14 @@ namespace uppm.Core
         /// If <see cref="AskUserEventArgs.Answer"/> is not assigned or null or empty the default is assumed.
         /// </summary>
         public static event UppmAskUserHandler OnQuestion;
+
+        /// <summary>
+        /// Not implemented functionality notification convenience method.
+        /// </summary>
+        public static void NotYetImplemented()
+        {
+            var stacktrace = new StackTrace();
+            L.Error("Invoked functionality is not implemented at:\n{$StackTrace}", stacktrace);
+        }
     }
 }
