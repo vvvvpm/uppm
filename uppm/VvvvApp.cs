@@ -20,6 +20,16 @@ namespace uppm
         /// <inheritdoc />
         public override string Executable { get => "vvvv.exe"; set { } }
 
+        public override bool TryGetInstalledPackage(PartialPackageReference packref, InstalledPackageScope scope, out Package pack)
+        {
+            throw new NotImplementedException(); 
+        }
+
+        public override void EnumerateInstalledPackages(InstalledPackageScope scope, Func<Package, bool> action)
+        {
+            throw new NotImplementedException();
+        }
+
         /// <inheritdoc />
         public override string AppFolder
         {

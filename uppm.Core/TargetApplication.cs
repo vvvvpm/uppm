@@ -36,6 +36,8 @@ namespace uppm.Core
     [Flags]
     public enum InstalledPackageScope
     {
+        None = 0,
+
         /// <summary>
         /// Packages in global scope are placed to a central location specified by the
         /// target application and presumably they are available to use everywhere at least
@@ -135,7 +137,7 @@ namespace uppm.Core
         /// </summary>
         public Architecture DefaultArchitecture { get; set; } = Architecture.x64;
 
-        public Architecture _appArch = Architecture.Native;
+        private Architecture _appArch = Architecture.Native;
 
         /// <summary>
         /// Actual machine type of the target application
@@ -312,11 +314,18 @@ namespace uppm.Core
     /// </summary>
     public class CurrentUppmApp : TargetApp
     {
+        /// <inheritdoc />
         public override bool TryGetInstalledPackage(PartialPackageReference packref, InstalledPackageScope scope, out Package pack)
         {
             Logging.NotYetImplemented();
             pack = null;
             return false;
+        }
+
+        /// <inheritdoc />
+        public override void EnumerateInstalledPackages(InstalledPackageScope scope, Func<Package, bool> action)
+        {
+            Logging.NotYetImplemented();
         }
 
         /// <inheritdoc />
