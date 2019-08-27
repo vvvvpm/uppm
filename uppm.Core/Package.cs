@@ -201,8 +201,8 @@ namespace uppm.Core
                             "Skip dependency because a more appropriate or a newer version is already installed.",
                             depref
                         );
-                        break;
                         continue;
+                        break;
 
                     case ExistingPackageResolution.UpdateWithInput:
                         Log.Information(

@@ -94,7 +94,7 @@ namespace uppm.Core.Scripting
         private const int _getScriptTextRecursionMaxDepth = 500;
 
         /// <inheritdoc />
-        public bool TryGetScriptText(string text, out string scripttext, HashSet<PartialPackageReference> imports = null, string parentRepo = "")
+        public bool TryGetScriptText(string text, out string scripttext, string parentRepo = "")
         {
             _getScriptTextRecursionDepthCounter++;
 
@@ -146,7 +146,7 @@ namespace uppm.Core.Scripting
                 var importScriptText = "";
                 success = success &&
                           importPackRepo.TryGetPackageText(packref, out var importPackText) &&
-                          TryGetScriptText(importPackText, out importScriptText, null, parentRepo);
+                          TryGetScriptText(importPackText, out importScriptText, parentRepo);
                 if (!success)
                 {
                     Log.Error("Couldn't get the script text of {PackRef}", packreftext);

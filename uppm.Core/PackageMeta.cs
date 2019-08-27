@@ -5,7 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using Hjson;
 using md.stdl.Coding;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 
 namespace uppm.Core
 {
@@ -34,19 +36,21 @@ namespace uppm.Core
         /// <param name="parentRepo">Optionally a parent repository can be specified. This is used mostly for keeping dependency contexts correct.</param>
         public static void ParseFromJson(string json, ref PackageMeta packmeta, string parentRepo = "")
         {
-            packmeta = packmeta ?? new PackageMeta();
             var jobj = packmeta.MetaData = JObject.Parse(json);
 
-            packmeta.Name = jobj["name"].ToString();
-            packmeta.Version = jobj["version"].ToString();
+            // TODO: Case insensitive contract bs
+            packmeta = jobj.ToObject<PackageMeta>();
 
-            packmeta.Author = jobj["author"]?.ToString();
-            packmeta.License = jobj["license"]?.ToString();
-            packmeta.ProjectUrl = jobj["projectUrl"]?.ToString();
-            packmeta.Repository = jobj["repository"]?.ToString();
-            packmeta.Description = jobj["description"]?.ToString();
-            packmeta.CompatibleAppVersion = jobj["compatibleAppVersion"]?.ToString();
-            packmeta.ForceGlobal = bool.TryParse(jobj["forceGlobal"]?.ToString() ?? "false", out var fg) && fg;
+            //packmeta.Name = jobj["name"].ToString();
+            //packmeta.Version = jobj["version"].ToString();
+            //packmeta.Author = jobj["author"]?.ToString();
+            //packmeta.Author = jobj["author"]?.ToString();
+            //packmeta.License = jobj["license"]?.ToString();
+            //packmeta.ProjectUrl = jobj["projectUrl"]?.ToString();
+            //packmeta.Repository = jobj["repository"]?.ToString();
+            //packmeta.Description = jobj["description"]?.ToString();
+            //packmeta.CompatibleAppVersion = jobj["compatibleAppVersion"]?.ToString();
+            //packmeta.ForceGlobal = bool.TryParse(jobj["forceGlobal"]?.ToString() ?? "false", out var fg) && fg;
             packmeta.InferSelf();
             packmeta.Dependencies.Clear();
 
@@ -141,12 +145,8 @@ namespace uppm.Core
         /// <summary>
         /// References for packages this one is depending on
         /// </summary>
+        [JsonIgnore]
         public HashSet<PartialPackageReference> Dependencies { get; } = new HashSet<PartialPackageReference>();
-
-        /// <summary>
-        /// References for packages which scripts should be imported into the current script.
-        /// </summary>
-        public HashSet<PartialPackageReference> Imports { get; } = new HashSet<PartialPackageReference>();
 
         /// <summary>
         /// Create a package reference out of this Meta

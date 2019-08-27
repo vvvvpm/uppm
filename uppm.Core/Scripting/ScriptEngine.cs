@@ -55,7 +55,7 @@ namespace uppm.Core.Scripting
         /// <param name="imports">Optional <see cref="HashSet{T}"/> of imports found in this script</param>
         /// <param name="parentRepo">Optionally a parent repository can be specified. This is used mostly for keeping dependency contexts correct.</param>
         /// <returns>True if retrieving the script text was successful</returns>
-        bool TryGetScriptText(string text, out string scripttext, HashSet<PartialPackageReference> imports = null, string parentRepo = "");
+        bool TryGetScriptText(string text, out string scripttext, string parentRepo = "");
 
         /// <summary>
         /// Run an action identified via a string from the script of a package
@@ -242,7 +242,7 @@ namespace uppm.Core.Scripting
                 parentRepo))
                 return false;
 
-            if (engine.TryGetScriptText(text, out var scripttext, packMeta.Imports, parentRepo))
+            if (engine.TryGetScriptText(text, out var scripttext, parentRepo))
             {
                 packMeta.ScriptText = scripttext;
                 return true;
