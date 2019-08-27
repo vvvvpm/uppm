@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Management.Automation;
 using System.Net;
+using Humanizer;
 using LibGit2Sharp;
 using md.stdl.Windows;
 using Serilog;
@@ -21,10 +22,18 @@ namespace uppm.Core.Scripting
         /// </summary>
         public TargetApp App { get; set; }
 
+        public InstalledPackageScope Scope { get; set; }
+
+        public string TargetDirectory =>
+            ((int) Scope & 2) > 0 ? App.LocalPacksFolder : App.GlobalPacksFolder;
+
+        public string WorkDirectory =>
+            Path.Combine(Uppm.Implementation.TemporaryFolder, Pack.Meta.Self.ToString().Dehumanize().Kebaberize());
+
         /// <summary>
         /// Information about the package manager
         /// </summary>
-        public IUppmImplementation Uppm { get; }
+        public IUppmImplementation PackageManager { get; }
 
         /// <summary>
         /// The package which script is currently hosted
@@ -45,7 +54,7 @@ namespace uppm.Core.Scripting
         /// <param name="uppm">The executing package manager</param>
         public ScriptHost(Package pack, IUppmImplementation uppm) : this()
         {
-            Uppm = uppm;
+            PackageManager = uppm;
             Pack = pack;
         }
 
